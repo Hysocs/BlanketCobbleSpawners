@@ -10,6 +10,13 @@
 
 *Preview of a spawners gui with 5 mons selected*
 
+![Screenshot 1](https://i.imgur.com/wcMkLXd.png)
+
+*Preview of shown stats for selected mon*
+
+![Screenshot 1](https://i.imgur.com/wWU2yKy.gif)
+
+*Preview of editing a mons spawn values*
 
 ![Screenshot 2](https://i.imgur.com/0kcjxwx.jpeg)
 *Example of how spawners could be placed around spawn with holograms above them from another mod*
