@@ -1,0 +1,53 @@
+{
+	"schemaVersion": 1,
+	"id": "blanketcobblespawners",
+	"version": "${version}",
+	"name": "BlanketCobbleSpawners",
+	"description": "BlanketCobbleSpawners is a Minecraft Fabric mod that offers customizable spawners for cobblemon",
+	"authors": [
+		"Hysocs"
+	],
+	"contact": {
+		"discord": "https://discord.gg/nrENPTmQKt"
+	},
+	"license": "GNU Lesser General Public License v3",
+	"icon": "assets/blanketcobblespawners/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			{
+				"value": "com.blanketcobblespawners.BlanketCobbleSpawners",
+				"adapter": "kotlin"
+			}
+		],
+		"client": [
+			{
+				"value": "com.blanketcobblespawners.BlanketCobbleSpawnersClient",
+				"adapter": "kotlin"
+			}
+		],
+		"fabric-datagen": [
+			{
+				"value": "com.blanketcobblespawners.BlanketCobbleSpawnersDataGenerator",
+				"adapter": "kotlin"
+			}
+		]
+	},
+	"mixins": [
+		"blanketcobblespawners.mixins.json",
+		{
+			"config": "blanketcobblespawners.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.15.1",
+		"minecraft": "~1.20.1",
+		"java": ">=17",
+		"fabric-api": "*",
+		"fabric-language-kotlin": "*"
+	},
+	"suggests": {
+		"another-mod": "*"
+	}
+}
