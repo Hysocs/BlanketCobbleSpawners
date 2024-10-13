@@ -88,3 +88,8 @@
 
 ### Config Setup
 Check out the `config/BlanketCobbleSpawners` folder to tweak settings such as global options, individual spawners, and Pokémon stats.
+
+---
+
+### Discord
+- [Discord Link](https://discord.gg/nrENPTmQKt)
