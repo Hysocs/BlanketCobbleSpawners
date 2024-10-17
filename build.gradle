@@ -89,6 +89,7 @@ dependencies {
 	modImplementation('me.lucko:fabric-permissions-api:0.2-SNAPSHOT')
 	modImplementation("curse.maven:cyber-permissions-407695:4640544")
 
+	implementation 'com.fasterxml.jackson.core:jackson-databind:2.13.3'
 }
 
 processResources {
