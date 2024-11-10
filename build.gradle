@@ -75,7 +75,7 @@ fabricApi {
 }
 
 dependencies {
-	// To change the versions see the gradle.properties file
+	// Minecraft and Fabric dependencies
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
@@ -88,9 +88,8 @@ dependencies {
 	modImplementation "net.fabricmc.fabric-api:fabric-biome-api-v1:3.0.0+8367596d95"
 	modImplementation('me.lucko:fabric-permissions-api:0.2-SNAPSHOT')
 	modImplementation("curse.maven:cyber-permissions-407695:4640544")
-
-	implementation 'com.fasterxml.jackson.core:jackson-databind:2.13.3'
 }
+
 
 processResources {
 	inputs.property "version", project.version

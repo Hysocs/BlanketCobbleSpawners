@@ -1,10 +1,11 @@
-package com.blanketcobblespawners.utils.Gui
+package com.blanketcobblespawners.utils.gui.pokemonsettings
 
 import com.blanketcobblespawners.utils.ConfigManager
 import com.blanketcobblespawners.utils.ConfigManager.logDebug
 import com.blanketcobblespawners.utils.CustomGui
 import com.blanketcobblespawners.utils.InteractionContext
 import com.blanketcobblespawners.utils.PokemonSpawnEntry
+import com.blanketcobblespawners.utils.gui.GuiManager
 import net.minecraft.inventory.Inventory
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
@@ -14,16 +15,19 @@ import net.minecraft.util.ClickType
 import net.minecraft.util.math.BlockPos
 import org.slf4j.LoggerFactory
 
-object IVEditorGui {
-    private val logger = LoggerFactory.getLogger(IVEditorGui::class.java)
+object IVSettingsGui {
+    private val logger = LoggerFactory.getLogger(IVSettingsGui::class.java)
 
     /**
-     * Opens the IV editor GUI for a specific Pokémon.
+     * Opens the IV editor GUI for a specific Pokémon and form.
      */
-    fun openIVEditorGui(player: ServerPlayerEntity, spawnerPos: BlockPos, pokemonName: String) {
-        val selectedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName)
+    fun openIVEditorGui(player: ServerPlayerEntity, spawnerPos: BlockPos, pokemonName: String, formName: String?) {
+        val selectedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName, formName)
         if (selectedEntry == null) {
-            player.sendMessage(Text.literal("Pokemon '$pokemonName' not found in spawner."), false)
+            player.sendMessage(
+                Text.literal("Pokémon '$pokemonName' with form '${formName ?: "Standard"}' not found in spawner."),
+                false
+            )
             return
         }
 
@@ -39,32 +43,60 @@ object IVEditorGui {
                 Items.PAPER -> {
                     when (context.clickType) {
                         ClickType.LEFT -> {
-                            updateIVValue(spawnerPos, selectedEntry.pokemonName, clickedItemName, -1, player)
+                            updateIVValue(
+                                spawnerPos,
+                                selectedEntry.pokemonName,
+                                selectedEntry.formName,
+                                clickedItemName,
+                                -1,
+                                player
+                            )
                         }
                         ClickType.RIGHT -> {
-                            updateIVValue(spawnerPos, selectedEntry.pokemonName, clickedItemName, 1, player)
+                            updateIVValue(
+                                spawnerPos,
+                                selectedEntry.pokemonName,
+                                selectedEntry.formName,
+                                clickedItemName,
+                                1,
+                                player
+                            )
                         }
                     }
                 }
                 Items.LEVER -> {
-                    toggleAllowCustomIvsWithoutClosing(spawnerPos, selectedEntry.pokemonName, player, context.slotIndex)
+                    toggleAllowCustomIvsWithoutClosing(
+                        spawnerPos,
+                        selectedEntry.pokemonName,
+                        selectedEntry.formName,
+                        player,
+                        context.slotIndex
+                    )
                 }
                 Items.ARROW -> {
                     CustomGui.closeGui(player)
                     player.sendMessage(Text.literal("Returning to Edit Pokémon menu"), false)
-                    GuiManager.openPokemonEditSubGui(player, spawnerPos, selectedEntry.pokemonName)
+                    GuiManager.openPokemonEditSubGui(
+                        player,
+                        spawnerPos,
+                        selectedEntry.pokemonName,
+                        selectedEntry.formName
+                    )
                 }
             }
         }
 
         val onClose: (Inventory) -> Unit = {
             GuiManager.spawnerGuisOpen.remove(spawnerPos)
-            player.sendMessage(Text.literal("IV Editor closed for ${selectedEntry.pokemonName}"), false)
+            player.sendMessage(
+                Text.literal("IV Editor closed for ${selectedEntry.pokemonName} (${selectedEntry.formName ?: "Standard"})"),
+                false
+            )
         }
 
         CustomGui.openGui(
             player,
-            "Edit IVs for ${selectedEntry.pokemonName}",
+            "Edit IVs for ${selectedEntry.pokemonName} (${selectedEntry.formName ?: "Standard"})",
             layout,
             onInteract,
             onClose
@@ -102,7 +134,7 @@ object IVEditorGui {
         for (i in 12 until 54) {
             if (i != 31 && i != 49) {
                 layout[i] = ItemStack(Items.GRAY_STAINED_GLASS_PANE).apply {
-                    GuiManager.setItemLore(this, listOf(" "))
+                    CustomGui.setItemLore(this, listOf(" "))
                     setCustomName(Text.literal(" "))
                 }
             }
@@ -111,7 +143,7 @@ object IVEditorGui {
         // Add toggle button for custom IVs
         layout[31] = ItemStack(Items.LEVER).apply {
             setCustomName(Text.literal("Allow Custom IVs: ${if (ivSettings.allowCustomIvs) "ON" else "OFF"}"))
-            GuiManager.setItemLore(this, listOf("§eClick to toggle"))
+            CustomGui.setItemLore(this, listOf("§eClick to toggle"))
         }
 
         // Add the back button to return to the Pokémon editor
@@ -128,20 +160,29 @@ object IVEditorGui {
     private fun createIVItem(statName: String, value: Int): ItemStack {
         return ItemStack(Items.PAPER).apply {
             setCustomName(Text.literal(statName))
-            GuiManager.setItemLore(this, listOf(
-                "§aCurrent Value:",
-                "§7Value: §f$value",
-                "§eLeft-click to decrease",
-                "§eRight-click to increase"
-            ))
+            CustomGui.setItemLore(
+                this, listOf(
+                    "§aCurrent Value:",
+                    "§7Value: §f$value",
+                    "§eLeft-click to decrease",
+                    "§eRight-click to increase"
+                )
+            )
         }
     }
 
     /**
      * Updates the IV value for the given Pokémon entry.
      */
-    private fun updateIVValue(spawnerPos: BlockPos, pokemonName: String, statName: String, delta: Int, player: ServerPlayerEntity) {
-        ConfigManager.updatePokemonSpawnEntry(spawnerPos, pokemonName) { selectedEntry ->
+    private fun updateIVValue(
+        spawnerPos: BlockPos,
+        pokemonName: String,
+        formName: String?,
+        statName: String,
+        delta: Int,
+        player: ServerPlayerEntity
+    ) {
+        ConfigManager.updatePokemonSpawnEntry(spawnerPos, pokemonName, formName) { selectedEntry ->
             val ivSettings = selectedEntry.ivSettings
             when (statName.lowercase()) {
                 "hp min" -> ivSettings.minIVHp = (ivSettings.minIVHp + delta).coerceIn(0, 31)
@@ -162,10 +203,12 @@ object IVEditorGui {
         }
 
         // After updating, refresh the GUI
-        val updatedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName)
+        val updatedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName, formName)
         if (updatedEntry != null) {
             refreshGui(player, updatedEntry)
-            logDebug("Updated IVs for ${updatedEntry.pokemonName} at spawner $spawnerPos and saved to JSON.")
+            logDebug(
+                "Updated IVs for ${updatedEntry.pokemonName} (${updatedEntry.formName ?: "Standard"}) at spawner $spawnerPos and saved to JSON."
+            )
         }
     }
 
@@ -188,8 +231,14 @@ object IVEditorGui {
     /**
      * Toggles the allowCustomIvs flag without closing the GUI and updates the lever lore.
      */
-    private fun toggleAllowCustomIvsWithoutClosing(spawnerPos: BlockPos, pokemonName: String, player: ServerPlayerEntity, leverSlot: Int) {
-        ConfigManager.updatePokemonSpawnEntry(spawnerPos, pokemonName) { selectedEntry ->
+    private fun toggleAllowCustomIvsWithoutClosing(
+        spawnerPos: BlockPos,
+        pokemonName: String,
+        formName: String?,
+        player: ServerPlayerEntity,
+        leverSlot: Int
+    ) {
+        ConfigManager.updatePokemonSpawnEntry(spawnerPos, pokemonName, formName) { selectedEntry ->
             val ivSettings = selectedEntry.ivSettings
             ivSettings.allowCustomIvs = !ivSettings.allowCustomIvs
         } ?: run {
@@ -198,11 +247,11 @@ object IVEditorGui {
         }
 
         // Update the lever item to reflect the new value (ON/OFF)
-        val selectedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName)
+        val selectedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName, formName)
         if (selectedEntry != null) {
             val leverItem = ItemStack(Items.LEVER).apply {
                 setCustomName(Text.literal("Allow Custom IVs: ${if (selectedEntry.ivSettings.allowCustomIvs) "ON" else "OFF"}"))
-                GuiManager.setItemLore(this, listOf("§eClick to toggle"))
+                CustomGui.setItemLore(this, listOf("§eClick to toggle"))
             }
 
             // Update the GUI with the new lever lore without closing
@@ -213,7 +262,9 @@ object IVEditorGui {
 
             screenHandler.sendContentUpdates()
 
-            logDebug("Toggled allowCustomIvs for ${selectedEntry.pokemonName} at spawner $spawnerPos.")
+            logDebug(
+                "Toggled allowCustomIvs for ${selectedEntry.pokemonName} (${selectedEntry.formName ?: "Standard"}) at spawner $spawnerPos."
+            )
         }
     }
 }

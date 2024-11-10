@@ -1,10 +1,11 @@
-package com.blanketcobblespawners.utils.Gui
+package com.blanketcobblespawners.utils.gui.pokemonsettings
 
 import com.blanketcobblespawners.utils.ConfigManager
-import com.blanketcobblespawners.utils.Gui.GuiManager.spawnerGuisOpen
 import com.blanketcobblespawners.utils.CustomGui
 import com.blanketcobblespawners.utils.InteractionContext
 import com.blanketcobblespawners.utils.PokemonSpawnEntry
+import com.blanketcobblespawners.utils.gui.GuiManager
+import com.blanketcobblespawners.utils.gui.GuiManager.spawnerGuisOpen
 import net.minecraft.inventory.Inventory
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
@@ -13,17 +14,20 @@ import net.minecraft.text.Text
 import net.minecraft.util.math.BlockPos
 import org.slf4j.LoggerFactory
 
-object OtherEditableGui {
-    private val logger = LoggerFactory.getLogger(OtherEditableGui::class.java)
+object OtherSettingsGui {
+    private val logger = LoggerFactory.getLogger(OtherSettingsGui::class.java)
 
     /**
-     * Opens the Other Editable GUI for a specific Pokémon.
+     * Opens the Other Editable GUI for a specific Pokémon and form.
      */
-    fun openOtherEditableGui(player: ServerPlayerEntity, spawnerPos: BlockPos, pokemonName: String) {
-        val selectedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName)
+    fun openOtherEditableGui(player: ServerPlayerEntity, spawnerPos: BlockPos, pokemonName: String, formName: String?) {
+        val selectedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName, formName)
         if (selectedEntry == null) {
-            player.sendMessage(Text.literal("Pokémon '$pokemonName' not found in spawner."), false)
-            logger.warn("Pokémon '$pokemonName' not found in spawner at $spawnerPos.")
+            player.sendMessage(
+                Text.literal("Pokémon '$pokemonName' with form '${formName ?: "Standard"}' not found in spawner."),
+                false
+            )
+            logger.warn("Pokémon '$pokemonName' with form '${formName ?: "Standard"}' not found in spawner at $spawnerPos.")
             return
         }
 
@@ -33,34 +37,50 @@ object OtherEditableGui {
 
         val onInteract: (InteractionContext) -> Unit = { context ->
             val clickedItem = context.clickedStack
-            val clickedItemName = clickedItem.name?.string ?: ""
 
             when (clickedItem.item) {
-                Items.LEVER -> {
-                    toggleIsCatchable(spawnerPos, pokemonName, player, context.slotIndex)
-                }
                 Items.CLOCK -> {
-                    toggleSpawnTime(spawnerPos, pokemonName, player, context.slotIndex)
+                    toggleSpawnTime(
+                        spawnerPos,
+                        pokemonName,
+                        formName,
+                        player,
+                        context.slotIndex
+                    )
                 }
                 Items.SUNFLOWER -> { // New item for weather toggle
-                    toggleSpawnWeather(spawnerPos, pokemonName, player, context.slotIndex)
+                    toggleSpawnWeather(
+                        spawnerPos,
+                        pokemonName,
+                        formName,
+                        player,
+                        context.slotIndex
+                    )
                 }
                 Items.ARROW -> {
                     CustomGui.closeGui(player)
                     player.sendMessage(Text.literal("Returning to Edit Pokémon menu"), false)
-                    GuiManager.openPokemonEditSubGui(player, spawnerPos, pokemonName)
+                    GuiManager.openPokemonEditSubGui(
+                        player,
+                        spawnerPos,
+                        pokemonName,
+                        formName
+                    )
                 }
             }
         }
 
         val onClose: (Inventory) -> Unit = {
             spawnerGuisOpen.remove(spawnerPos)
-            player.sendMessage(Text.literal("Other Editable GUI closed for $pokemonName"), false)
+            player.sendMessage(
+                Text.literal("Other Editable GUI closed for $pokemonName (${selectedEntry.formName ?: "Standard"})"),
+                false
+            )
         }
 
         CustomGui.openGui(
             player,
-            "Edit Other Properties for $pokemonName",
+            "Edit Other Properties for $pokemonName (${selectedEntry.formName ?: "Standard"})",
             layout,
             onInteract,
             onClose
@@ -73,9 +93,6 @@ object OtherEditableGui {
     private fun generateOtherEditableLayout(selectedEntry: PokemonSpawnEntry): List<ItemStack> {
         val layout = MutableList(54) { ItemStack.EMPTY }
 
-        // Toggle Button for isCatchable
-        layout[22] = createIsCatchableToggleButton(selectedEntry.captureSettings.isCatchable)
-
         // Button for spawn time toggle
         layout[24] = createSpawnTimeToggleButton(selectedEntry.spawnSettings.spawnTime)
 
@@ -84,7 +101,7 @@ object OtherEditableGui {
 
         // Fill the rest with gray stained glass panes except for the toggle buttons and back button
         for (i in 0 until 54) {
-            if (i !in listOf(20, 22, 24, 49)) {
+            if (i !in listOf(20, 24, 49)) {
                 layout[i] = ItemStack(Items.GRAY_STAINED_GLASS_PANE).apply {
                     setCustomName(Text.literal(" "))
                 }
@@ -94,7 +111,7 @@ object OtherEditableGui {
         // Back Button
         layout[49] = ItemStack(Items.ARROW).apply {
             setCustomName(Text.literal("Back"))
-            GuiManager.setItemLore(this, listOf("§eClick to return"))
+            CustomGui.setItemLore(this, listOf("§eClick to return"))
         }
 
         return layout
@@ -108,7 +125,7 @@ object OtherEditableGui {
 
         return ItemStack(Items.LEVER).apply {
             setCustomName(Text.literal(toggleName))
-            GuiManager.setItemLore(this, listOf("§eClick to toggle"))
+            CustomGui.setItemLore(this, listOf("§eClick to toggle"))
         }
     }
 
@@ -124,7 +141,7 @@ object OtherEditableGui {
 
         return ItemStack(Items.CLOCK).apply {
             setCustomName(Text.literal(displayName))
-            GuiManager.setItemLore(this, listOf("§eClick to toggle spawn time"))
+            CustomGui.setItemLore(this, listOf("§eClick to toggle spawn time"))
         }
     }
 
@@ -141,15 +158,21 @@ object OtherEditableGui {
 
         return ItemStack(Items.SUNFLOWER).apply { // Using SUNFLOWER as weather icon
             setCustomName(Text.literal(displayName))
-            GuiManager.setItemLore(this, listOf("§eClick to toggle spawn weather"))
+            CustomGui.setItemLore(this, listOf("§eClick to toggle spawn weather"))
         }
     }
 
     /**
      * Toggles the isCatchable property of the selectedEntry.
      */
-    private fun toggleIsCatchable(spawnerPos: BlockPos, pokemonName: String, player: ServerPlayerEntity, leverSlot: Int) {
-        ConfigManager.updatePokemonSpawnEntry(spawnerPos, pokemonName) { selectedEntry ->
+    private fun toggleIsCatchable(
+        spawnerPos: BlockPos,
+        pokemonName: String,
+        formName: String?,
+        player: ServerPlayerEntity,
+        leverSlot: Int
+    ) {
+        ConfigManager.updatePokemonSpawnEntry(spawnerPos, pokemonName, formName) { selectedEntry ->
             selectedEntry.captureSettings.isCatchable = !selectedEntry.captureSettings.isCatchable
         } ?: run {
             player.sendMessage(Text.literal("Failed to toggle isCatchable."), false)
@@ -157,7 +180,7 @@ object OtherEditableGui {
         }
 
         // Update the lever item to reflect the new value (ON/OFF)
-        val updatedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName)
+        val updatedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName, formName)
         if (updatedEntry != null) {
             val leverItem = createIsCatchableToggleButton(updatedEntry.captureSettings.isCatchable)
 
@@ -169,21 +192,32 @@ object OtherEditableGui {
 
             screenHandler.sendContentUpdates()
 
-            logger.info("Toggled isCatchable for $pokemonName at spawner $spawnerPos.")
+            logger.info(
+                "Toggled isCatchable for $pokemonName (${updatedEntry.formName ?: "Standard"}) at spawner $spawnerPos."
+            )
 
             // Notify the player
-            player.sendMessage(Text.literal("Set Catchable to ${if (updatedEntry.captureSettings.isCatchable) "ON" else "OFF"} for $pokemonName."), false)
+            player.sendMessage(
+                Text.literal("Set Catchable to ${if (updatedEntry.captureSettings.isCatchable) "ON" else "OFF"} for $pokemonName."),
+                false
+            )
         }
     }
 
     /**
      * Toggles the spawnTime property of the selectedEntry.
      */
-    private fun toggleSpawnTime(spawnerPos: BlockPos, pokemonName: String, player: ServerPlayerEntity, clockSlot: Int) {
-        ConfigManager.updatePokemonSpawnEntry(spawnerPos, pokemonName) { selectedEntry ->
+    private fun toggleSpawnTime(
+        spawnerPos: BlockPos,
+        pokemonName: String,
+        formName: String?,
+        player: ServerPlayerEntity,
+        clockSlot: Int
+    ) {
+        ConfigManager.updatePokemonSpawnEntry(spawnerPos, pokemonName, formName) { selectedEntry ->
             selectedEntry.spawnSettings.spawnTime = when (selectedEntry.spawnSettings.spawnTime) {
                 "DAY" -> "NIGHT"
-                "NIGHT" -> "BOTH"
+                "NIGHT" -> "ALL"
                 else -> "DAY"
             }
         } ?: run {
@@ -192,7 +226,7 @@ object OtherEditableGui {
         }
 
         // Update the clock item to reflect the new spawn time
-        val updatedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName)
+        val updatedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName, formName)
         if (updatedEntry != null) {
             val clockItem = createSpawnTimeToggleButton(updatedEntry.spawnSettings.spawnTime)
 
@@ -204,18 +238,29 @@ object OtherEditableGui {
 
             screenHandler.sendContentUpdates()
 
-            logger.info("Toggled spawn time for $pokemonName at spawner $spawnerPos to ${updatedEntry.spawnSettings.spawnTime}.")
+            logger.info(
+                "Toggled spawn time for $pokemonName (${updatedEntry.formName ?: "Standard"}) at spawner $spawnerPos to ${updatedEntry.spawnSettings.spawnTime}."
+            )
 
             // Notify the player
-            player.sendMessage(Text.literal("Set spawn time to ${updatedEntry.spawnSettings.spawnTime} for $pokemonName."), false)
+            player.sendMessage(
+                Text.literal("Set spawn time to ${updatedEntry.spawnSettings.spawnTime} for $pokemonName."),
+                false
+            )
         }
     }
 
     /**
      * Toggles the spawnWeather property of the selectedEntry.
      */
-    private fun toggleSpawnWeather(spawnerPos: BlockPos, pokemonName: String, player: ServerPlayerEntity, weatherSlot: Int) {
-        ConfigManager.updatePokemonSpawnEntry(spawnerPos, pokemonName) { selectedEntry ->
+    private fun toggleSpawnWeather(
+        spawnerPos: BlockPos,
+        pokemonName: String,
+        formName: String?,
+        player: ServerPlayerEntity,
+        weatherSlot: Int
+    ) {
+        ConfigManager.updatePokemonSpawnEntry(spawnerPos, pokemonName, formName) { selectedEntry ->
             selectedEntry.spawnSettings.spawnWeather = when (selectedEntry.spawnSettings.spawnWeather) {
                 "CLEAR" -> "RAIN"
                 "RAIN" -> "THUNDER"
@@ -228,7 +273,7 @@ object OtherEditableGui {
         }
 
         // Update the weather item to reflect the new spawn weather
-        val updatedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName)
+        val updatedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName, formName)
         if (updatedEntry != null) {
             val weatherItem = createSpawnWeatherToggleButton(updatedEntry.spawnSettings.spawnWeather)
 
@@ -240,10 +285,15 @@ object OtherEditableGui {
 
             screenHandler.sendContentUpdates()
 
-            logger.info("Toggled spawn weather for $pokemonName at spawner $spawnerPos to ${updatedEntry.spawnSettings.spawnWeather}.")
+            logger.info(
+                "Toggled spawn weather for $pokemonName (${updatedEntry.formName ?: "Standard"}) at spawner $spawnerPos to ${updatedEntry.spawnSettings.spawnWeather}."
+            )
 
             // Notify the player
-            player.sendMessage(Text.literal("Set spawn weather to ${updatedEntry.spawnSettings.spawnWeather} for $pokemonName."), false)
+            player.sendMessage(
+                Text.literal("Set spawn weather to ${updatedEntry.spawnSettings.spawnWeather} for $pokemonName."),
+                false
+            )
         }
     }
 }

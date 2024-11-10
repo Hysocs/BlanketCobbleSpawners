@@ -1,11 +1,12 @@
-package com.blanketcobblespawners.utils.Gui
+package com.blanketcobblespawners.utils.gui.pokemonsettings
 
 import com.blanketcobblespawners.utils.ConfigManager
 import com.blanketcobblespawners.utils.ConfigManager.logDebug
 import com.blanketcobblespawners.utils.CustomGui
-import com.blanketcobblespawners.utils.Gui.GuiManager.spawnerGuisOpen
 import com.blanketcobblespawners.utils.InteractionContext
 import com.blanketcobblespawners.utils.PokemonSpawnEntry
+import com.blanketcobblespawners.utils.gui.GuiManager
+import com.blanketcobblespawners.utils.gui.GuiManager.spawnerGuisOpen
 import net.minecraft.inventory.Inventory
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
@@ -15,16 +16,19 @@ import net.minecraft.util.ClickType
 import net.minecraft.util.math.BlockPos
 import org.slf4j.LoggerFactory
 
-object EVEditorGui {
-    private val logger = LoggerFactory.getLogger(EVEditorGui::class.java)
+object EVSettingsGui {
+    private val logger = LoggerFactory.getLogger(EVSettingsGui::class.java)
 
     /**
-     * Opens the EV editor GUI for a specific Pokémon.
+     * Opens the EV editor GUI for a specific Pokémon and form.
      */
-    fun openEVEditorGui(player: ServerPlayerEntity, spawnerPos: BlockPos, pokemonName: String) {
-        val selectedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName)
+    fun openEVEditorGui(player: ServerPlayerEntity, spawnerPos: BlockPos, pokemonName: String, formName: String?) {
+        val selectedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName, formName)
         if (selectedEntry == null) {
-            player.sendMessage(Text.literal("Pokemon '$pokemonName' not found in spawner."), false)
+            player.sendMessage(
+                Text.literal("Pokémon '$pokemonName' with form '${formName ?: "Standard"}' not found in spawner."),
+                false
+            )
             return
         }
 
@@ -40,32 +44,62 @@ object EVEditorGui {
                 Items.PAPER -> {
                     when (context.clickType) {
                         ClickType.LEFT -> {
-                            updateEVValue(spawnerPos, selectedEntry.pokemonName, clickedItemName, -1, player, context.slotIndex)
+                            updateEVValue(
+                                spawnerPos,
+                                selectedEntry.pokemonName,
+                                selectedEntry.formName,
+                                clickedItemName,
+                                -1,
+                                player,
+                                context.slotIndex
+                            )
                         }
                         ClickType.RIGHT -> {
-                            updateEVValue(spawnerPos, selectedEntry.pokemonName, clickedItemName, 1, player, context.slotIndex)
+                            updateEVValue(
+                                spawnerPos,
+                                selectedEntry.pokemonName,
+                                selectedEntry.formName,
+                                clickedItemName,
+                                1,
+                                player,
+                                context.slotIndex
+                            )
                         }
                     }
                 }
                 Items.LEVER -> {
-                    toggleAllowCustomEvsWithoutClosing(spawnerPos, selectedEntry.pokemonName, player, context.slotIndex)
+                    toggleAllowCustomEvsWithoutClosing(
+                        spawnerPos,
+                        selectedEntry.pokemonName,
+                        selectedEntry.formName,
+                        player,
+                        context.slotIndex
+                    )
                 }
                 Items.ARROW -> {
                     CustomGui.closeGui(player)
                     player.sendMessage(Text.literal("Returning to Edit Pokémon menu"), false)
-                    GuiManager.openPokemonEditSubGui(player, spawnerPos, selectedEntry.pokemonName)
+                    GuiManager.openPokemonEditSubGui(
+                        player,
+                        spawnerPos,
+                        selectedEntry.pokemonName,
+                        selectedEntry.formName
+                    )
                 }
             }
         }
 
         val onClose: (Inventory) -> Unit = {
             spawnerGuisOpen.remove(spawnerPos)
-            player.sendMessage(Text.literal("EV Editor closed for ${selectedEntry.pokemonName}"), false)
+            player.sendMessage(
+                Text.literal("EV Editor closed for ${selectedEntry.pokemonName} (${selectedEntry.formName ?: "Standard"})"),
+                false
+            )
         }
 
         CustomGui.openGui(
             player,
-            "Edit EVs for ${selectedEntry.pokemonName}",
+            "Edit EVs for ${selectedEntry.pokemonName} (${selectedEntry.formName ?: "Standard"})",
             layout,
             onInteract,
             onClose
@@ -92,7 +126,7 @@ object EVEditorGui {
         for (i in 6 until 54) {
             if (i != 31 && i != 49) {
                 layout[i] = ItemStack(Items.GRAY_STAINED_GLASS_PANE).apply {
-                    GuiManager.setItemLore(this, listOf(" "))
+                    CustomGui.setItemLore(this, listOf(" "))
                     setCustomName(Text.literal(" "))
                 }
             }
@@ -101,7 +135,7 @@ object EVEditorGui {
         // Add toggle button for custom EVs
         layout[31] = ItemStack(Items.LEVER).apply {
             setCustomName(Text.literal("Allow Custom EVs: ${if (evSettings.allowCustomEvsOnDefeat) "ON" else "OFF"}"))
-            GuiManager.setItemLore(this, listOf("§eClick to toggle"))
+            CustomGui.setItemLore(this, listOf("§eClick to toggle"))
         }
 
         // Add the back button to return to the Pokémon editor
@@ -118,20 +152,30 @@ object EVEditorGui {
     private fun createEVItem(statName: String, value: Int): ItemStack {
         return ItemStack(Items.PAPER).apply {
             setCustomName(Text.literal(statName))
-            GuiManager.setItemLore(this, listOf(
-                "§aCurrent Value:",
-                "§7Value: §f$value",
-                "§eLeft-click to decrease",
-                "§eRight-click to increase"
-            ))
+            CustomGui.setItemLore(
+                this, listOf(
+                    "§aCurrent Value:",
+                    "§7Value: §f$value",
+                    "§eLeft-click to decrease",
+                    "§eRight-click to increase"
+                )
+            )
         }
     }
 
     /**
      * Updates the EV value for the given Pokémon entry.
      */
-    private fun updateEVValue(spawnerPos: BlockPos, pokemonName: String, statName: String, delta: Int, player: ServerPlayerEntity, slotIndex: Int) {
-        ConfigManager.updatePokemonSpawnEntry(spawnerPos, pokemonName) { selectedEntry ->
+    private fun updateEVValue(
+        spawnerPos: BlockPos,
+        pokemonName: String,
+        formName: String?,
+        statName: String,
+        delta: Int,
+        player: ServerPlayerEntity,
+        slotIndex: Int
+    ) {
+        ConfigManager.updatePokemonSpawnEntry(spawnerPos, pokemonName, formName) { selectedEntry ->
             val evSettings = selectedEntry.evSettings
             when (statName.lowercase()) {
                 "hp ev" -> evSettings.evHp = (evSettings.evHp + delta).coerceIn(0, 252)
@@ -147,17 +191,22 @@ object EVEditorGui {
         }
 
         // Update the item lore in the GUI for the updated EV stat
-        val updatedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName)
+        val updatedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName, formName)
         if (updatedEntry != null) {
             refreshSingleGuiItem(player, statName, updatedEntry, slotIndex)
-            logDebug("Updated EVs for ${updatedEntry.pokemonName} at spawner $spawnerPos and saved to JSON.")
+            logDebug("Updated EVs for ${updatedEntry.pokemonName} (${updatedEntry.formName ?: "Standard"}) at spawner $spawnerPos and saved to JSON.")
         }
     }
 
     /**
      * Refreshes a single GUI item to reflect the updated EV value.
      */
-    private fun refreshSingleGuiItem(player: ServerPlayerEntity, statName: String, selectedEntry: PokemonSpawnEntry, slotIndex: Int) {
+    private fun refreshSingleGuiItem(
+        player: ServerPlayerEntity,
+        statName: String,
+        selectedEntry: PokemonSpawnEntry,
+        slotIndex: Int
+    ) {
         val updatedItem = when (statName.lowercase()) {
             "hp ev" -> createEVItem("HP EV", selectedEntry.evSettings.evHp)
             "attack ev" -> createEVItem("Attack EV", selectedEntry.evSettings.evAttack)
@@ -180,8 +229,14 @@ object EVEditorGui {
     /**
      * Toggles the allowCustomEvsOnDefeat flag without closing the GUI and updates the lever lore.
      */
-    private fun toggleAllowCustomEvsWithoutClosing(spawnerPos: BlockPos, pokemonName: String, player: ServerPlayerEntity, leverSlot: Int) {
-        ConfigManager.updatePokemonSpawnEntry(spawnerPos, pokemonName) { selectedEntry ->
+    private fun toggleAllowCustomEvsWithoutClosing(
+        spawnerPos: BlockPos,
+        pokemonName: String,
+        formName: String?,
+        player: ServerPlayerEntity,
+        leverSlot: Int
+    ) {
+        ConfigManager.updatePokemonSpawnEntry(spawnerPos, pokemonName, formName) { selectedEntry ->
             selectedEntry.evSettings.allowCustomEvsOnDefeat = !selectedEntry.evSettings.allowCustomEvsOnDefeat
         } ?: run {
             player.sendMessage(Text.literal("Failed to toggle allowCustomEvsOnDefeat."), false)
@@ -189,11 +244,11 @@ object EVEditorGui {
         }
 
         // Update the lever item to reflect the new value (ON/OFF)
-        val selectedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName)
+        val selectedEntry = ConfigManager.getPokemonSpawnEntry(spawnerPos, pokemonName, formName)
         if (selectedEntry != null) {
             val leverItem = ItemStack(Items.LEVER).apply {
                 setCustomName(Text.literal("Allow Custom EVs: ${if (selectedEntry.evSettings.allowCustomEvsOnDefeat) "ON" else "OFF"}"))
-                GuiManager.setItemLore(this, listOf("§eClick to toggle"))
+                CustomGui.setItemLore(this, listOf("§eClick to toggle"))
             }
 
             // Update the GUI with the new lever lore without closing
@@ -204,7 +259,7 @@ object EVEditorGui {
 
             screenHandler.sendContentUpdates()
 
-            logDebug("Toggled allowCustomEvsOnDefeat for ${selectedEntry.pokemonName} at spawner $spawnerPos.")
+            logDebug("Toggled allowCustomEvsOnDefeat for ${selectedEntry.pokemonName} (${selectedEntry.formName ?: "Standard"}) at spawner $spawnerPos.")
         }
     }
 }
