@@ -111,8 +111,8 @@ object CommandRegistrar {
                                                     .suggests(formNameSuggestions)
                                                     .executes { context ->
                                                         val spawnerName = getString(context, "spawnerName")
-                                                        val pokemonName = getString(context, "pokemonName")
-                                                        val formName = getString(context, "formName")
+                                                        val pokemonName = getString(context, "pokemonName").lowercase()
+                                                        val formName = getString(context, "formName").lowercase()
 
                                                         val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
                                                         if (spawnerEntry == null) {
@@ -122,19 +122,24 @@ object CommandRegistrar {
 
                                                         val species = PokemonSpecies.getByName(pokemonName)
                                                         if (species == null) {
-                                                            context.source.sendError(Text.literal("Pokémon '$pokemonName' not found."))
+                                                            context.source.sendError(Text.literal("Pokémon '$pokemonName' not found. Please check the spelling."))
                                                             return@executes 0
                                                         }
 
-                                                        val formExists = species.forms.any { it.name.equals(formName, ignoreCase = true) }
-                                                        if (!formExists) {
-                                                            context.source.sendError(Text.literal("Form '$formName' does not exist for Pokémon '$pokemonName'."))
-                                                            return@executes 0
+                                                        // Determine the appropriate form name
+                                                        val selectedForm = when {
+                                                            species.forms.isEmpty() -> "Normal" // No forms available, default to "Normal"
+                                                            species.forms.any { it.name.equals(formName, ignoreCase = true) } -> formName
+                                                            formName.isBlank() || formName.equals("normal", ignoreCase = true) -> "Normal"
+                                                            else -> {
+                                                                context.source.sendError(Text.literal("Form '$formName' does not exist for Pokémon '$pokemonName'. Defaulting to 'Normal'."))
+                                                                "Normal"
+                                                            }
                                                         }
 
                                                         val newEntry = PokemonSpawnEntry(
                                                             pokemonName = pokemonName,
-                                                            formName = formName, // Assuming PokemonSpawnEntry has this field
+                                                            formName = selectedForm,
                                                             spawnChance = 50.0,
                                                             shinyChance = 0.0,
                                                             minLevel = 1,
@@ -176,7 +181,7 @@ object CommandRegistrar {
 
                                                         if (ConfigManager.addPokemonSpawnEntry(spawnerEntry.spawnerPos, newEntry)) {
                                                             context.source.sendFeedback(
-                                                                { Text.literal("Added Pokémon '$pokemonName' with form '$formName' to spawner '$spawnerName'.") },
+                                                                { Text.literal("Added Pokémon '$pokemonName' with form '$selectedForm' to spawner '$spawnerName'.") },
                                                                 true
                                                             )
                                                             return@executes 1
@@ -188,7 +193,7 @@ object CommandRegistrar {
                                             )
                                             .executes { context ->
                                                 val spawnerName = getString(context, "spawnerName")
-                                                val pokemonName = getString(context, "pokemonName")
+                                                val pokemonName = getString(context, "pokemonName").lowercase()
 
                                                 val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
                                                 if (spawnerEntry == null) {
@@ -198,15 +203,16 @@ object CommandRegistrar {
 
                                                 val species = PokemonSpecies.getByName(pokemonName)
                                                 if (species == null) {
-                                                    context.source.sendError(Text.literal("Pokémon '$pokemonName' not found."))
+                                                    context.source.sendError(Text.literal("Pokémon '$pokemonName' not found. Please check the spelling."))
                                                     return@executes 0
                                                 }
 
-                                                val defaultForm = species.forms.find { it.name.equals("default", ignoreCase = true) }?.name ?: "default"
+                                                // Set form to "Normal" if no form specified
+                                                val selectedForm = if (species.forms.isEmpty()) "Normal" else "default"
 
                                                 val newEntry = PokemonSpawnEntry(
                                                     pokemonName = pokemonName,
-                                                    formName = defaultForm, // Assign default form if no formName provided
+                                                    formName = selectedForm,
                                                     spawnChance = 50.0,
                                                     shinyChance = 0.0,
                                                     minLevel = 1,
@@ -227,7 +233,7 @@ object CommandRegistrar {
                                                         minIVSpecialAttack = 0,
                                                         maxIVSpecialAttack = 31,
                                                         minIVSpecialDefense = 0,
-                                                        maxIVSpecialDefense = 31,
+                                                        maxIVSpecialDefense = 0,
                                                         minIVSpeed = 0,
                                                         maxIVSpeed = 31
                                                     ),
@@ -248,7 +254,7 @@ object CommandRegistrar {
 
                                                 if (ConfigManager.addPokemonSpawnEntry(spawnerEntry.spawnerPos, newEntry)) {
                                                     context.source.sendFeedback(
-                                                        { Text.literal("Added Pokémon '$pokemonName' to spawner '$spawnerName' with default form '$defaultForm'.") },
+                                                        { Text.literal("Added Pokémon '$pokemonName' to spawner '$spawnerName' with form '$selectedForm'.") },
                                                         true
                                                     )
                                                     return@executes 1
@@ -259,6 +265,7 @@ object CommandRegistrar {
                                             }
                                     )
                             )
+
                     )
                     .then(
                         literal("removemon")
@@ -727,12 +734,18 @@ object CommandRegistrar {
         builder.buildFuture()
     }
 
+    // Suggestion provider for Pokémon names, filtering based on current input
     private val pokemonNameSuggestions: SuggestionProvider<ServerCommandSource> = SuggestionProvider { context, builder ->
-        PokemonSpecies.species.map { it.name }
-            .filter { it.startsWith(builder.remainingLowerCase) }
+        // Fetch the current input
+        val input = builder.remaining.lowercase()
+        // Filter species names that start with the current input
+        PokemonSpecies.species
+            .map { it.name }
+            .filter { it.lowercase().startsWith(input) }
             .forEach { builder.suggest(it) }
         builder.buildFuture()
     }
+
 
     private val formNameSuggestions: SuggestionProvider<ServerCommandSource> = SuggestionProvider { context, builder ->
         // Retrieve the 'pokemonName' argument from the context
@@ -741,17 +754,31 @@ object CommandRegistrar {
         } catch (e: IllegalArgumentException) {
             "" // Default to empty if 'pokemonName' isn't provided yet
         }
+
+        // Get the species by name
         val species = PokemonSpecies.getByName(pokemonName)
         if (species != null) {
-            for (form in species.forms) {
-                val formName = form.name?.lowercase() ?: "default"
-                if (formName.startsWith(builder.remainingLowerCase)) {
+            // Always suggest "Normal" as a default form, avoiding duplicates
+            builder.suggest("Normal")
+
+            // Add each available form from the species, skipping if it is already "Normal"
+            species.forms.forEach { form ->
+                val formName = form.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+                    ?: "Normal"
+                if (formName != "Normal") {
                     builder.suggest(formName)
                 }
             }
+        } else {
+            // If no species is found, suggest only "Normal"
+            builder.suggest("Normal")
         }
+
         builder.buildFuture()
     }
+
+
+
 
     // Function to give the player a PokemonInspect stick
     private fun givePokemonInspectStick(player: ServerPlayerEntity) {

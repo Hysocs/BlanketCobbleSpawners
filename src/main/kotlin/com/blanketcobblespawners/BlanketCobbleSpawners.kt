@@ -239,12 +239,8 @@ object BlanketCobbleSpawners : ModInitializer {
 			logDebug("GUI is open for spawner at ${spawnerData.spawnerPos}. Skipping spawn.")
 			return
 		}
-		val conditionCheck = checkSpawnConditions(serverWorld, spawnerData)
-		if (conditionCheck != null) {
-			logDebug("Spawn conditions not met for spawner at ${spawnerData.spawnerPos}: $conditionCheck. Skipping spawn.")
-			return
-		}
-		// The cleanup is already called in the tick handler
+
+		// Get current spawn positions
 		val validPositions = spawnerValidPositions.getOrPut(spawnerData.spawnerPos) {
 			val positions = computeValidSpawnPositions(serverWorld, spawnerData)
 			if (positions.isEmpty()) {
@@ -255,26 +251,48 @@ object BlanketCobbleSpawners : ModInitializer {
 				} else retryPositions
 			} else positions
 		}
+
 		if (validPositions.isEmpty()) {
 			logDebug("No suitable spawn position found for spawner at ${spawnerData.spawnerPos}. Skipping spawn.")
 			return
 		}
-		val totalWeight = spawnerData.selectedPokemon.sumOf { it.spawnChance }
+
+		// **Filter Pokémon based on their individual spawn conditions**
+		val eligiblePokemon = spawnerData.selectedPokemon.filter { entry ->
+			val condition = checkIndividualSpawnConditions(serverWorld, entry)
+			if (condition != null) {
+				logDebug("Spawn conditions not met for Pokémon '${entry.pokemonName}' at spawner '${spawnerData.spawnerName}': $condition. Skipping spawn.")
+				false
+			} else {
+				true
+			}
+		}
+
+		if (eligiblePokemon.isEmpty()) {
+			logDebug("No eligible Pokémon to spawn for spawner '${spawnerData.spawnerName}'.")
+			return
+		}
+
+		// Calculate total spawn weight based on eligible Pokémon
+		val totalWeight = eligiblePokemon.sumOf { it.spawnChance }
 		if (totalWeight <= 0) {
 			logger.warn("Total spawn chance is zero or negative for spawner at ${spawnerData.spawnerPos}. Skipping spawn.")
 			return
 		}
+
 		val currentSpawned = SpawnerUUIDManager.getUUIDsForSpawner(spawnerData.spawnerPos).size
 		val maxSpawnable = spawnerData.spawnLimit - currentSpawned
 		if (maxSpawnable <= 0) {
-			logDebug("Spawn limit reached for spawner at ${spawnerData.spawnerPos}. No Pokémon will be spawned.")
+			logDebug("Spawn limit reached for spawner '${spawnerData.spawnerName}'. No Pokémon will be spawned.")
 			return
 		}
+
 		val spawnAmount = min(spawnerData.spawnAmountPerSpawn, maxSpawnable)
 		logDebug("Attempting to spawn $spawnAmount Pokémon(s) for spawner at ${spawnerData.spawnerPos}")
 		val maxAttemptsPerSpawn = 5
 		var totalAttempts = 0
 		var spawnedCount = 0
+
 		while (spawnedCount < spawnAmount && totalAttempts < spawnAmount * maxAttemptsPerSpawn) {
 			val index = random.nextInt(validPositions.size)
 			val spawnPos = validPositions[index]
@@ -283,21 +301,24 @@ object BlanketCobbleSpawners : ModInitializer {
 				totalAttempts++
 				continue
 			}
+
 			val randomValue = random.nextDouble() * totalWeight
 			var cumulativeWeight = 0.0
 			var selectedPokemon: PokemonSpawnEntry? = null
-			for (pokemonEntry in spawnerData.selectedPokemon) {
+			for (pokemonEntry in eligiblePokemon) {
 				cumulativeWeight += pokemonEntry.spawnChance
 				if (randomValue <= cumulativeWeight) {
 					selectedPokemon = pokemonEntry
 					break
 				}
 			}
+
 			if (selectedPokemon == null) {
 				logger.warn("No Pokémon selected for spawning at spawner at ${spawnerData.spawnerPos}")
 				totalAttempts++
 				continue
 			}
+
 			val entry = selectedPokemon
 			val sanitizedPokemonName = entry.pokemonName.replace(Regex("[^a-zA-Z0-9]"), "").lowercase()
 			val species = PokemonSpecies.getByName(sanitizedPokemonName)
@@ -381,8 +402,6 @@ object BlanketCobbleSpawners : ModInitializer {
 				logDebug("Held items on spawn are disabled for Pokémon '${species.name}'.")
 			}
 
-
-
 			pokemonEntity.refreshPositionAndAngles(
 				spawnPos.x + 0.5,
 				spawnPos.y.toDouble(),
@@ -405,6 +424,7 @@ object BlanketCobbleSpawners : ModInitializer {
 			logDebug("No Pokémon were spawned for spawner at ${spawnerData.spawnerPos}")
 		}
 	}
+
 
 	private fun roundToOneDecimal(value: Float): Float {
 		return (value * 10).roundToInt() / 10f
@@ -442,37 +462,36 @@ object BlanketCobbleSpawners : ModInitializer {
 		}
 	}
 
-	private fun checkSpawnConditions(world: ServerWorld, spawnerData: SpawnerData): String? {
-		for (entry in spawnerData.selectedPokemon) {
-			val spawnSettings = entry.spawnSettings
+	private fun checkIndividualSpawnConditions(world: ServerWorld, entry: PokemonSpawnEntry): String? {
+		val spawnSettings = entry.spawnSettings
 
-			// Check time of day
-			if (spawnSettings.spawnTime != "ALL") {
-				val timeOfDay = world.timeOfDay % 24000
-				val isDay = timeOfDay in 0..12000
-				val isNight = timeOfDay in 13000..23000
+		// **Check time of day for the individual Pokémon**
+		if (spawnSettings.spawnTime != "ALL") {
+			val timeOfDay = world.timeOfDay % 24000
+			val isDay = timeOfDay in 0..12000
+			val isNight = timeOfDay in 13000..23000
 
-				when (spawnSettings.spawnTime.uppercase()) {
-					"DAY" -> if (!isDay) return "Time of day is ${if (isNight) "NIGHT" else "UNKNOWN"}, but spawner requires DAY."
-					"NIGHT" -> if (!isNight) return "Time of day is ${if (isDay) "DAY" else "UNKNOWN"}, but spawner requires NIGHT."
-				}
-			}
-
-			// Check weather
-			if (spawnSettings.spawnWeather != "ALL") {
-				val isRaining = world.isRaining
-				val isThunderstorm = world.isThundering
-
-				when (spawnSettings.spawnWeather.uppercase()) {
-					"CLEAR" -> if (isRaining || isThunderstorm) return "Weather is ${if (isThunderstorm) "THUNDER" else "RAIN"}, but spawner requires CLEAR weather."
-					"RAIN" -> if (!isRaining || isThunderstorm) return "Weather is ${if (isThunderstorm) "THUNDER" else "CLEAR"}, but spawner requires RAIN without thunderstorms."
-					"THUNDER" -> if (!isThunderstorm) return "Weather is ${if (isRaining) "RAIN" else "CLEAR"}, but spawner requires THUNDER."
-				}
+			when (spawnSettings.spawnTime.uppercase()) {
+				"DAY" -> if (!isDay) return "Time of day is ${if (isNight) "NIGHT" else "UNKNOWN"}, but Pokémon requires DAY."
+				"NIGHT" -> if (!isNight) return "Time of day is ${if (isDay) "DAY" else "UNKNOWN"}, but Pokémon requires NIGHT."
 			}
 		}
 
-		return null // All conditions are met
+		// **Check weather for the individual Pokémon**
+		if (spawnSettings.spawnWeather != "ALL") {
+			val isRaining = world.isRaining
+			val isThunderstorm = world.isThundering
+
+			when (spawnSettings.spawnWeather.uppercase()) {
+				"CLEAR" -> if (isRaining || isThunderstorm) return "Weather is ${if (isThunderstorm) "THUNDER" else "RAIN"}, but Pokémon requires CLEAR weather."
+				"RAIN" -> if (!isRaining || isThunderstorm) return "Weather is ${if (isThunderstorm) "THUNDER" else "CLEAR"}, but Pokémon requires RAIN without thunderstorms."
+				"THUNDER" -> if (!isThunderstorm) return "Weather is ${if (isRaining) "RAIN" else "CLEAR"}, but Pokémon requires THUNDER."
+			}
+		}
+
+		return null // All conditions are met for this Pokémon
 	}
+
 
 
 	fun computeValidSpawnPositions(serverWorld: ServerWorld, spawnerData: SpawnerData): List<BlockPos> {
