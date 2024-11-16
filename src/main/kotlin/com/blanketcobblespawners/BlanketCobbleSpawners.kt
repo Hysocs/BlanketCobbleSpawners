@@ -243,13 +243,13 @@ object BlanketCobbleSpawners : ModInitializer {
 		// Get current spawn positions
 		val validPositions = spawnerValidPositions.getOrPut(spawnerData.spawnerPos) {
 			val positions = computeValidSpawnPositions(serverWorld, spawnerData)
-			if (positions.isEmpty()) {
+			positions.ifEmpty {
 				val retryPositions = computeValidSpawnPositions(serverWorld, spawnerData)
-				if (retryPositions.isEmpty()) {
+				retryPositions.ifEmpty {
 					logger.error("No valid spawn positions found for spawner at ${spawnerData.spawnerPos} after two attempts.")
 					emptyList()
-				} else retryPositions
-			} else positions
+				}
+			}
 		}
 
 		if (validPositions.isEmpty()) {
