@@ -58,6 +58,7 @@ object CommandRegistrar {
     }
 
     // Register the `/blanketcobblespawners` command with aliases
+// Register the `/blanketcobblespawners` command with aliases
     private fun registerBlanketCobbleSpawnersCommand(dispatcher: CommandDispatcher<ServerCommandSource>) {
         val mainCommand = literal("blanketcobblespawners") // Main command
             .requires { source ->
@@ -68,132 +69,89 @@ object CommandRegistrar {
                 context.source.sendFeedback({ Text.literal("BlanketCobbleSpawners v1.0.0") }, false)
                 1
             }
-            // Spawner commands group
+            // Edit command
             .then(
-                literal("spawner")
+                literal("edit")
                     .then(
-                        literal("edit")
+                        argument("spawnerName", word())
+                            .suggests(spawnerNameSuggestions)
+                            .executes { context ->
+                                val spawnerName = getString(context, "spawnerName")
+                                val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
+                                val player = context.source.player as? ServerPlayerEntity
+
+                                if (spawnerEntry == null) {
+                                    context.source.sendError(Text.literal("Spawner '$spawnerName' not found."))
+                                    return@executes 0
+                                }
+
+                                if (player != null) {
+                                    // Open the GUI for the spawner
+                                    GuiManager.openSpawnerGui(player, spawnerEntry.spawnerPos)
+                                    context.source.sendFeedback({ Text.literal("GUI for spawner '$spawnerName' has been opened.") }, true)
+                                    return@executes 1
+                                } else {
+                                    context.source.sendError(Text.literal("Only players can run this command."))
+                                    return@executes 0
+                                }
+                            }
+                    )
+            )
+            // Rename command
+            .then(
+                literal("rename")
+                    .then(
+                        argument("currentName", word())
+                            .suggests(spawnerNameSuggestions)
                             .then(
-                                argument("spawnerName", word())
-                                    .suggests(spawnerNameSuggestions)
+                                argument("newName", word())
                                     .executes { context ->
-                                        val spawnerName = getString(context, "spawnerName")
-                                        val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
+                                        val currentName = getString(context, "currentName")
+                                        val newName = getString(context, "newName")
                                         val player = context.source.player as? ServerPlayerEntity
 
+                                        val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == currentName }
+
                                         if (spawnerEntry == null) {
-                                            context.source.sendError(Text.literal("Spawner '$spawnerName' not found."))
+                                            context.source.sendError(Text.literal("Spawner '$currentName' not found."))
                                             return@executes 0
                                         }
 
-                                        if (player != null) {
-                                            // Open the GUI for the spawner
-                                            GuiManager.openSpawnerGui(player, spawnerEntry.spawnerPos)
-                                            context.source.sendFeedback({ Text.literal("GUI for spawner '$spawnerName' has been opened.") }, true)
-                                            return@executes 1
-                                        } else {
-                                            context.source.sendError(Text.literal("Only players can run this command."))
+                                        // Check if the new name already exists
+                                        if (ConfigManager.spawners.values.any { it.spawnerName == newName }) {
+                                            context.source.sendError(Text.literal("Spawner name '$newName' is already in use."))
                                             return@executes 0
                                         }
+
+                                        // Rename the spawner
+                                        spawnerEntry.spawnerName = newName
+                                        ConfigManager.saveSpawnerData()
+
+                                        context.source.sendFeedback(
+                                            { Text.literal("Spawner renamed from '$currentName' to '$newName'.") },
+                                            true
+                                        )
+                                        return@executes 1
                                     }
                             )
                     )
+            )
+            // Addmon command
+            .then(
+                literal("addmon")
                     .then(
-                        literal("addmon")
+                        argument("spawnerName", word())
+                            .suggests(spawnerNameSuggestions)
                             .then(
-                                argument("spawnerName", word())
-                                    .suggests(spawnerNameSuggestions)
+                                argument("pokemonName", word())
+                                    .suggests(pokemonNameSuggestions)
                                     .then(
-                                        argument("pokemonName", word())
-                                            .suggests(pokemonNameSuggestions)
-                                            .then(
-                                                argument("formName", word())
-                                                    .suggests(formNameSuggestions)
-                                                    .executes { context ->
-                                                        val spawnerName = getString(context, "spawnerName")
-                                                        val pokemonName = getString(context, "pokemonName").lowercase()
-                                                        val formName = getString(context, "formName").lowercase()
-
-                                                        val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
-                                                        if (spawnerEntry == null) {
-                                                            context.source.sendError(Text.literal("Spawner '$spawnerName' not found."))
-                                                            return@executes 0
-                                                        }
-
-                                                        val species = PokemonSpecies.getByName(pokemonName)
-                                                        if (species == null) {
-                                                            context.source.sendError(Text.literal("Pokémon '$pokemonName' not found. Please check the spelling."))
-                                                            return@executes 0
-                                                        }
-
-                                                        // Determine the appropriate form name
-                                                        val selectedForm = when {
-                                                            species.forms.isEmpty() -> "Normal" // No forms available, default to "Normal"
-                                                            species.forms.any { it.name.equals(formName, ignoreCase = true) } -> formName
-                                                            formName.isBlank() || formName.equals("normal", ignoreCase = true) -> "Normal"
-                                                            else -> {
-                                                                context.source.sendError(Text.literal("Form '$formName' does not exist for Pokémon '$pokemonName'. Defaulting to 'Normal'."))
-                                                                "Normal"
-                                                            }
-                                                        }
-
-                                                        val newEntry = PokemonSpawnEntry(
-                                                            pokemonName = pokemonName,
-                                                            formName = selectedForm,
-                                                            spawnChance = 50.0,
-                                                            shinyChance = 0.0,
-                                                            minLevel = 1,
-                                                            maxLevel = 100,
-                                                            captureSettings = CaptureSettings(
-                                                                isCatchable = true,
-                                                                restrictCaptureToLimitedBalls = true,
-                                                                requiredPokeBalls = listOf("safari_ball")
-                                                            ),
-                                                            ivSettings = IVSettings(
-                                                                allowCustomIvs = false,
-                                                                minIVHp = 0,
-                                                                maxIVHp = 31,
-                                                                minIVAttack = 0,
-                                                                maxIVAttack = 31,
-                                                                minIVDefense = 0,
-                                                                maxIVDefense = 31,
-                                                                minIVSpecialAttack = 0,
-                                                                maxIVSpecialAttack = 31,
-                                                                minIVSpecialDefense = 0,
-                                                                maxIVSpecialDefense = 31,
-                                                                minIVSpeed = 0,
-                                                                maxIVSpeed = 31
-                                                            ),
-                                                            evSettings = EVSettings(
-                                                                allowCustomEvsOnDefeat = false,
-                                                                evHp = 0,
-                                                                evAttack = 0,
-                                                                evDefense = 0,
-                                                                evSpecialAttack = 0,
-                                                                evSpecialDefense = 0,
-                                                                evSpeed = 0
-                                                            ),
-                                                            spawnSettings = SpawnSettings(
-                                                                spawnTime = "ALL",
-                                                                spawnWeather = "ALL"
-                                                            )
-                                                        )
-
-                                                        if (ConfigManager.addPokemonSpawnEntry(spawnerEntry.spawnerPos, newEntry)) {
-                                                            context.source.sendFeedback(
-                                                                { Text.literal("Added Pokémon '$pokemonName' with form '$selectedForm' to spawner '$spawnerName'.") },
-                                                                true
-                                                            )
-                                                            return@executes 1
-                                                        } else {
-                                                            context.source.sendError(Text.literal("Failed to add Pokémon '$pokemonName' to spawner '$spawnerName'."))
-                                                            return@executes 0
-                                                        }
-                                                    }
-                                            )
+                                        argument("formName", word())
+                                            .suggests(formNameSuggestions)
                                             .executes { context ->
                                                 val spawnerName = getString(context, "spawnerName")
                                                 val pokemonName = getString(context, "pokemonName").lowercase()
+                                                val formName = getString(context, "formName").lowercase()
 
                                                 val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
                                                 if (spawnerEntry == null) {
@@ -207,8 +165,16 @@ object CommandRegistrar {
                                                     return@executes 0
                                                 }
 
-                                                // Set form to "Normal" if no form specified
-                                                val selectedForm = if (species.forms.isEmpty()) "Normal" else "default"
+                                                // Determine the appropriate form name
+                                                val selectedForm = when {
+                                                    species.forms.isEmpty() -> "Normal" // No forms available, default to "Normal"
+                                                    species.forms.any { it.name.equals(formName, ignoreCase = true) } -> formName
+                                                    formName.isBlank() || formName.equals("normal", ignoreCase = true) -> "Normal"
+                                                    else -> {
+                                                        context.source.sendError(Text.literal("Form '$formName' does not exist for Pokémon '$pokemonName'. Defaulting to 'Normal'."))
+                                                        "Normal"
+                                                    }
+                                                }
 
                                                 val newEntry = PokemonSpawnEntry(
                                                     pokemonName = pokemonName,
@@ -233,7 +199,7 @@ object CommandRegistrar {
                                                         minIVSpecialAttack = 0,
                                                         maxIVSpecialAttack = 31,
                                                         minIVSpecialDefense = 0,
-                                                        maxIVSpecialDefense = 0,
+                                                        maxIVSpecialDefense = 31,
                                                         minIVSpeed = 0,
                                                         maxIVSpeed = 31
                                                     ),
@@ -254,7 +220,7 @@ object CommandRegistrar {
 
                                                 if (ConfigManager.addPokemonSpawnEntry(spawnerEntry.spawnerPos, newEntry)) {
                                                     context.source.sendFeedback(
-                                                        { Text.literal("Added Pokémon '$pokemonName' to spawner '$spawnerName' with form '$selectedForm'.") },
+                                                        { Text.literal("Added Pokémon '$pokemonName' with form '$selectedForm' to spawner '$spawnerName'.") },
                                                         true
                                                     )
                                                     return@executes 1
@@ -264,65 +230,106 @@ object CommandRegistrar {
                                                 }
                                             }
                                     )
-                            )
+                                    .executes { context ->
+                                        val spawnerName = getString(context, "spawnerName")
+                                        val pokemonName = getString(context, "pokemonName").lowercase()
 
-                    )
-                    .then(
-                        literal("removemon")
-                            .then(
-                                argument("spawnerName", word())
-                                    .suggests(spawnerNameSuggestions)
-                                    .then(
-                                        argument("pokemonName", word())
-                                            .suggests { context, builder ->
-                                                val spawnerName = getString(context, "spawnerName")
-                                                val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
-                                                spawnerEntry?.selectedPokemon?.forEach { entry ->
-                                                    if (entry.pokemonName.startsWith(builder.remainingLowerCase)) {
-                                                        builder.suggest(entry.pokemonName)
-                                                    }
-                                                }
-                                                builder.buildFuture()
-                                            }
-                                            .then(
-                                                argument("formName", word())
-                                                    .suggests(formNameSuggestions)
-                                                    .executes { context ->
-                                                        val spawnerName = getString(context, "spawnerName")
-                                                        val pokemonName = getString(context, "pokemonName")
-                                                        val formName = getString(context, "formName")
+                                        val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
+                                        if (spawnerEntry == null) {
+                                            context.source.sendError(Text.literal("Spawner '$spawnerName' not found."))
+                                            return@executes 0
+                                        }
 
-                                                        val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
-                                                        if (spawnerEntry == null) {
-                                                            context.source.sendError(Text.literal("Spawner '$spawnerName' not found."))
-                                                            return@executes 0
-                                                        }
+                                        val species = PokemonSpecies.getByName(pokemonName)
+                                        if (species == null) {
+                                            context.source.sendError(Text.literal("Pokémon '$pokemonName' not found. Please check the spelling."))
+                                            return@executes 0
+                                        }
 
-                                                        val existingEntry = spawnerEntry.selectedPokemon.find {
-                                                            it.pokemonName.equals(pokemonName, ignoreCase = true) &&
-                                                                    it.formName.equals(formName, ignoreCase = true)
-                                                        }
+                                        // Set form to "Normal" if no form specified
+                                        val selectedForm = if (species.forms.isEmpty()) "Normal" else "default"
 
-                                                        if (existingEntry != null) {
-                                                            if (ConfigManager.removePokemonSpawnEntry(spawnerEntry.spawnerPos, pokemonName, formName)) {
-                                                                context.source.sendFeedback(
-                                                                    { Text.literal("Removed Pokémon '$pokemonName' with form '$formName' from spawner '$spawnerName'.") },
-                                                                    true
-                                                                )
-                                                                return@executes 1
-                                                            } else {
-                                                                context.source.sendError(Text.literal("Failed to remove Pokémon '$pokemonName' from spawner '$spawnerName'."))
-                                                                return@executes 0
-                                                            }
-                                                        } else {
-                                                            context.source.sendError(Text.literal("Pokémon '$pokemonName' with form '$formName' is not selected for spawner '$spawnerName'."))
-                                                            return@executes 0
-                                                        }
-                                                    }
+                                        val newEntry = PokemonSpawnEntry(
+                                            pokemonName = pokemonName,
+                                            formName = selectedForm,
+                                            spawnChance = 50.0,
+                                            shinyChance = 0.0,
+                                            minLevel = 1,
+                                            maxLevel = 100,
+                                            captureSettings = CaptureSettings(
+                                                isCatchable = true,
+                                                restrictCaptureToLimitedBalls = true,
+                                                requiredPokeBalls = listOf("safari_ball")
+                                            ),
+                                            ivSettings = IVSettings(
+                                                allowCustomIvs = false,
+                                                minIVHp = 0,
+                                                maxIVHp = 31,
+                                                minIVAttack = 0,
+                                                maxIVAttack = 31,
+                                                minIVDefense = 0,
+                                                maxIVDefense = 31,
+                                                minIVSpecialAttack = 0,
+                                                maxIVSpecialAttack = 31,
+                                                minIVSpecialDefense = 0,
+                                                maxIVSpecialDefense = 0,
+                                                minIVSpeed = 0,
+                                                maxIVSpeed = 31
+                                            ),
+                                            evSettings = EVSettings(
+                                                allowCustomEvsOnDefeat = false,
+                                                evHp = 0,
+                                                evAttack = 0,
+                                                evDefense = 0,
+                                                evSpecialAttack = 0,
+                                                evSpecialDefense = 0,
+                                                evSpeed = 0
+                                            ),
+                                            spawnSettings = SpawnSettings(
+                                                spawnTime = "ALL",
+                                                spawnWeather = "ALL"
                                             )
+                                        )
+
+                                        if (ConfigManager.addPokemonSpawnEntry(spawnerEntry.spawnerPos, newEntry)) {
+                                            context.source.sendFeedback(
+                                                { Text.literal("Added Pokémon '$pokemonName' to spawner '$spawnerName' with form '$selectedForm'.") },
+                                                true
+                                            )
+                                            return@executes 1
+                                        } else {
+                                            context.source.sendError(Text.literal("Failed to add Pokémon '$pokemonName' to spawner '$spawnerName'."))
+                                            return@executes 0
+                                        }
+                                    }
+                            )
+                    )
+            )
+            // Removemon command
+            .then(
+                literal("removemon")
+                    .then(
+                        argument("spawnerName", word())
+                            .suggests(spawnerNameSuggestions)
+                            .then(
+                                argument("pokemonName", word())
+                                    .suggests { context, builder ->
+                                        val spawnerName = getString(context, "spawnerName")
+                                        val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
+                                        spawnerEntry?.selectedPokemon?.forEach { entry ->
+                                            if (entry.pokemonName.startsWith(builder.remainingLowerCase)) {
+                                                builder.suggest(entry.pokemonName)
+                                            }
+                                        }
+                                        builder.buildFuture()
+                                    }
+                                    .then(
+                                        argument("formName", word())
+                                            .suggests(formNameSuggestions)
                                             .executes { context ->
                                                 val spawnerName = getString(context, "spawnerName")
                                                 val pokemonName = getString(context, "pokemonName")
+                                                val formName = getString(context, "formName")
 
                                                 val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
                                                 if (spawnerEntry == null) {
@@ -330,166 +337,334 @@ object CommandRegistrar {
                                                     return@executes 0
                                                 }
 
-                                                val matchingEntries = spawnerEntry.selectedPokemon.filter { it.pokemonName.equals(pokemonName, ignoreCase = true) }
+                                                val existingEntry = spawnerEntry.selectedPokemon.find {
+                                                    it.pokemonName.equals(pokemonName, ignoreCase = true) &&
+                                                            it.formName.equals(formName, ignoreCase = true)
+                                                }
 
-                                                when {
-                                                    matchingEntries.isEmpty() -> {
-                                                        context.source.sendError(Text.literal("Pokémon '$pokemonName' is not selected for spawner '$spawnerName'."))
+                                                if (existingEntry != null) {
+                                                    if (ConfigManager.removePokemonSpawnEntry(spawnerEntry.spawnerPos, pokemonName, formName)) {
+                                                        context.source.sendFeedback(
+                                                            { Text.literal("Removed Pokémon '$pokemonName' with form '$formName' from spawner '$spawnerName'.") },
+                                                            true
+                                                        )
+                                                        return@executes 1
+                                                    } else {
+                                                        context.source.sendError(Text.literal("Failed to remove Pokémon '$pokemonName' from spawner '$spawnerName'."))
                                                         return@executes 0
                                                     }
-                                                    matchingEntries.size == 1 -> {
-                                                        val entry = matchingEntries.first()
-                                                        if (ConfigManager.removePokemonSpawnEntry(spawnerEntry.spawnerPos, pokemonName, entry.formName)) {
-                                                            context.source.sendFeedback(
-                                                                { Text.literal("Removed Pokémon '$pokemonName' with form '${entry.formName}' from spawner '$spawnerName'.") },
-                                                                true
-                                                            )
-                                                            return@executes 1
-                                                        } else {
-                                                            context.source.sendError(Text.literal("Failed to remove Pokémon '$pokemonName' from spawner '$spawnerName'."))
-                                                            return@executes 0
-                                                        }
-                                                    }
-                                                    else -> {
-                                                        context.source.sendError(Text.literal("Multiple forms found for Pokémon '$pokemonName'. Please specify a form name."))
-                                                        return@executes 0
-                                                    }
+                                                } else {
+                                                    context.source.sendError(Text.literal("Pokémon '$pokemonName' with form '$formName' is not selected for spawner '$spawnerName'."))
+                                                    return@executes 0
                                                 }
                                             }
                                     )
-                            )
-                    )
-                    .then(
-                        literal("kill-spawned-pokemon")
-                            .then(
-                                argument("spawnerName", word())
-                                    .suggests(spawnerNameSuggestions)
                                     .executes { context ->
                                         val spawnerName = getString(context, "spawnerName")
+                                        val pokemonName = getString(context, "pokemonName")
+
                                         val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
                                         if (spawnerEntry == null) {
                                             context.source.sendError(Text.literal("Spawner '$spawnerName' not found."))
                                             return@executes 0
                                         }
-                                        val spawnerPos = spawnerEntry.spawnerPos
-                                        val server = context.source.server
-                                        val registryKey = parseDimension(spawnerEntry.dimension)
-                                        val serverWorld = server.getWorld(registryKey)
-                                        if (serverWorld == null) {
-                                            context.source.sendError(Text.literal("World '${registryKey.value}' not found for spawner '$spawnerName'."))
-                                            return@executes 0
-                                        }
-                                        val uuids = SpawnerUUIDManager.getUUIDsForSpawner(spawnerPos)
-                                        uuids.forEach { uuid ->
-                                            val entity = serverWorld.getEntity(uuid)
-                                            if (entity is PokemonEntity) {
-                                                entity.discard()
-                                                SpawnerUUIDManager.removePokemon(uuid)
-                                                logDebug("Despawned Pokémon with UUID $uuid from spawner at $spawnerPos")
-                                            }
-                                        }
-                                        context.source.sendFeedback(
-                                            { Text.literal("All Pokémon spawned by spawner '$spawnerName' have been removed.") },
-                                            true
-                                        )
-                                        1
-                                    }
-                            )
-                    )
-                    .then(
-                        literal("toggle-spawner-visibility")
-                            .then(
-                                argument("spawnerName", word())
-                                    .suggests(spawnerNameSuggestions)
-                                    .executes { context ->
-                                        val spawnerName = getString(context, "spawnerName")
-                                        val spawnerData = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
 
-                                        if (spawnerData != null) {
-                                            val success = toggleSpawnerVisibility(context.source.server, spawnerData.spawnerPos)
-                                            if (success) {
-                                                context.source.sendFeedback(
-                                                    { Text.literal("Spawner '$spawnerName' visibility has been toggled.") },
-                                                    true
-                                                )
-                                                return@executes 1
-                                            } else {
-                                                context.source.sendError(Text.literal("Failed to toggle visibility for spawner '$spawnerName'."))
+                                        val matchingEntries = spawnerEntry.selectedPokemon.filter { it.pokemonName.equals(pokemonName, ignoreCase = true) }
+
+                                        when {
+                                            matchingEntries.isEmpty() -> {
+                                                context.source.sendError(Text.literal("Pokémon '$pokemonName' is not selected for spawner '$spawnerName'."))
                                                 return@executes 0
                                             }
-                                        } else {
-                                            context.source.sendError(Text.literal("Spawner '$spawnerName' not found."))
-                                            return@executes 0
-                                        }
-                                    }
-                            )
-                    )
-                    .then(
-                        literal("toggle-radius-visualization")
-                            .then(
-                                argument("spawnerName", word())
-                                    .suggests(spawnerNameSuggestions)
-                                    .executes { context ->
-                                        val spawnerName = getString(context, "spawnerName")
-                                        val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
-                                        val player = context.source.player as? ServerPlayerEntity
-
-                                        if (spawnerEntry == null) {
-                                            context.source.sendError(Text.literal("Spawner '$spawnerName' not found."))
-                                            return@executes 0
-                                        }
-
-                                        if (player != null) {
-                                            // Toggle the visualization for the player
-                                            toggleVisualization(player, spawnerEntry)
-                                            context.source.sendFeedback(
-                                                { Text.literal("Spawn radius visualization toggled for spawner '$spawnerName'.") },
-                                                true
-                                            )
-                                            return@executes 1
-                                        } else {
-                                            context.source.sendError(Text.literal("Only players can run this command."))
-                                            return@executes 0
-                                        }
-                                    }
-                            )
-                    )
-                    .then(
-                        literal("tptospawner")
-                            .then(
-                                argument("spawnerName", word())
-                                    .suggests(spawnerNameSuggestions)
-                                    .executes { context ->
-                                        val spawnerName = getString(context, "spawnerName")
-                                        val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
-                                        val player = context.source.player as? ServerPlayerEntity
-
-                                        if (spawnerEntry == null) {
-                                            context.source.sendError(Text.literal("Spawner '$spawnerName' not found."))
-                                            return@executes 0
-                                        }
-
-                                        if (player != null) {
-                                            // Teleport the player to the spawner's location
-                                            val spawnerPos = spawnerEntry.spawnerPos
-                                            val dimension = parseDimension(spawnerEntry.dimension)
-                                            val world = context.source.server.getWorld(dimension)
-                                            if (world != null) {
-                                                player.teleport(world, spawnerPos.x.toDouble(), spawnerPos.y.toDouble(), spawnerPos.z.toDouble(), player.yaw, player.pitch)
-                                                context.source.sendFeedback({ Text.literal("Teleported to spawner '$spawnerName'.") }, true)
-                                                return@executes 1
-                                            } else {
-                                                context.source.sendError(Text.literal("World '${spawnerEntry.dimension}' not found."))
+                                            matchingEntries.size == 1 -> {
+                                                val entry = matchingEntries.first()
+                                                if (ConfigManager.removePokemonSpawnEntry(spawnerEntry.spawnerPos, pokemonName, entry.formName)) {
+                                                    context.source.sendFeedback(
+                                                        { Text.literal("Removed Pokémon '$pokemonName' with form '${entry.formName}' from spawner '$spawnerName'.") },
+                                                        true
+                                                    )
+                                                    return@executes 1
+                                                } else {
+                                                    context.source.sendError(Text.literal("Failed to remove Pokémon '$pokemonName' from spawner '$spawnerName'."))
+                                                    return@executes 0
+                                                }
+                                            }
+                                            else -> {
+                                                context.source.sendError(Text.literal("Multiple forms found for Pokémon '$pokemonName'. Please specify a form name."))
                                                 return@executes 0
                                             }
-                                        } else {
-                                            context.source.sendError(Text.literal("Only players can run this command."))
-                                            return@executes 0
                                         }
                                     }
                             )
                     )
             )
+            // Killspawned command
+            .then(
+                literal("killspawned")
+                    .then(
+                        argument("spawnerName", word())
+                            .suggests(spawnerNameSuggestions)
+                            .executes { context ->
+                                val spawnerName = getString(context, "spawnerName")
+                                val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
+                                if (spawnerEntry == null) {
+                                    context.source.sendError(Text.literal("Spawner '$spawnerName' not found."))
+                                    return@executes 0
+                                }
+                                val spawnerPos = spawnerEntry.spawnerPos
+                                val server = context.source.server
+                                val registryKey = parseDimension(spawnerEntry.dimension)
+                                val serverWorld = server.getWorld(registryKey)
+                                if (serverWorld == null) {
+                                    context.source.sendError(Text.literal("World '${registryKey.value}' not found for spawner '$spawnerName'."))
+                                    return@executes 0
+                                }
+                                val uuids = SpawnerUUIDManager.getUUIDsForSpawner(spawnerPos)
+                                uuids.forEach { uuid ->
+                                    val entity = serverWorld.getEntity(uuid)
+                                    if (entity is PokemonEntity) {
+                                        entity.discard()
+                                        SpawnerUUIDManager.removePokemon(uuid)
+                                        logDebug("Despawned Pokémon with UUID $uuid from spawner at $spawnerPos")
+                                    }
+                                }
+                                context.source.sendFeedback(
+                                    { Text.literal("All Pokémon spawned by spawner '$spawnerName' have been removed.") },
+                                    true
+                                )
+                                1
+                            }
+                    )
+            )
+            // Togglevisibility command
+            .then(
+                literal("togglevisibility")
+                    .then(
+                        argument("spawnerName", word())
+                            .suggests(spawnerNameSuggestions)
+                            .executes { context ->
+                                val spawnerName = getString(context, "spawnerName")
+                                val spawnerData = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
+
+                                if (spawnerData != null) {
+                                    val success = toggleSpawnerVisibility(context.source.server, spawnerData.spawnerPos)
+                                    if (success) {
+                                        context.source.sendFeedback(
+                                            { Text.literal("Spawner '$spawnerName' visibility has been toggled.") },
+                                            true
+                                        )
+                                        return@executes 1
+                                    } else {
+                                        context.source.sendError(Text.literal("Failed to toggle visibility for spawner '$spawnerName'."))
+                                        return@executes 0
+                                    }
+                                } else {
+                                    context.source.sendError(Text.literal("Spawner '$spawnerName' not found."))
+                                    return@executes 0
+                                }
+                            }
+                    )
+            )
+            // Toggleradius command
+            .then(
+                literal("toggleradius")
+                    .then(
+                        argument("spawnerName", word())
+                            .suggests(spawnerNameSuggestions)
+                            .executes { context ->
+                                val spawnerName = getString(context, "spawnerName")
+                                val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
+                                val player = context.source.player as? ServerPlayerEntity
+
+                                if (spawnerEntry == null) {
+                                    context.source.sendError(Text.literal("Spawner '$spawnerName' not found."))
+                                    return@executes 0
+                                }
+
+                                if (player != null) {
+                                    // Toggle the visualization for the player
+                                    toggleVisualization(player, spawnerEntry)
+                                    context.source.sendFeedback(
+                                        { Text.literal("Spawn radius visualization toggled for spawner '$spawnerName'.") },
+                                        true
+                                    )
+                                    return@executes 1
+                                } else {
+                                    context.source.sendError(Text.literal("Only players can run this command."))
+                                    return@executes 0
+                                }
+                            }
+                    )
+            )
+            // Teleport command
+            .then(
+                literal("teleport")
+                    .then(
+                        argument("spawnerName", word())
+                            .suggests(spawnerNameSuggestions)
+                            .executes { context ->
+                                val spawnerName = getString(context, "spawnerName")
+                                val spawnerEntry = ConfigManager.spawners.values.find { it.spawnerName == spawnerName }
+                                val player = context.source.player as? ServerPlayerEntity
+
+                                if (spawnerEntry == null) {
+                                    context.source.sendError(Text.literal("Spawner '$spawnerName' not found."))
+                                    return@executes 0
+                                }
+
+                                if (player != null) {
+                                    // Teleport the player to the spawner's location
+                                    val spawnerPos = spawnerEntry.spawnerPos
+                                    val dimension = parseDimension(spawnerEntry.dimension)
+                                    val world = context.source.server.getWorld(dimension)
+                                    if (world != null) {
+                                        player.teleport(world, spawnerPos.x.toDouble(), spawnerPos.y.toDouble(), spawnerPos.z.toDouble(), player.yaw, player.pitch)
+                                        context.source.sendFeedback({ Text.literal("Teleported to spawner '$spawnerName'.") }, true)
+                                        return@executes 1
+                                    } else {
+                                        context.source.sendError(Text.literal("World '${spawnerEntry.dimension}' not found."))
+                                        return@executes 0
+                                    }
+                                } else {
+                                    context.source.sendError(Text.literal("Only players can run this command."))
+                                    return@executes 0
+                                }
+                            }
+                    )
+            )
+            // List command
+            .then(
+                literal("list")
+                    .executes { context ->
+                        val player = context.source.player as? ServerPlayerEntity ?: return@executes 0
+                        val spawnerList = ConfigManager.spawners.map { (pos, data) ->
+                            "${data.spawnerName}: ${pos.x}, ${pos.y}, ${pos.z} (${data.dimension})"
+                        }
+
+                        if (spawnerList.isEmpty()) {
+                            player.sendMessage(Text.literal("No spawners found."), false)
+                        } else {
+                            player.sendMessage(Text.literal("Spawners:\n${spawnerList.joinToString("\n")}"), false)
+                        }
+                        1
+                    }
+            )
+            // GUI command
+            .then(
+                literal("gui")
+                    .executes { context ->
+                        val player = context.source.player as? ServerPlayerEntity ?: return@executes 0
+                        SpawnerListGui.openSpawnerListGui(player)
+                        context.source.sendFeedback({ Text.literal("Spawner GUI has been opened.") }, true)
+                        1
+                    }
+            )
+            // Reload command
+            .then(
+                literal("reload")
+                    .executes { context ->
+                        ConfigManager.reloadSpawnerData() // Reload config
+                        context.source.sendFeedback(
+                            { Text.literal("Configuration for BlanketCobbleSpawners has been successfully reloaded.") },
+                            true
+                        )
+                        logDebug("Configuration reloaded for BlanketCobbleSpawners.")
+                        1
+                    }
+            )
+            // Give command
+            .then(
+                literal("givespawnerblock")
+                    .executes { context ->
+                        (context.source.player as? ServerPlayerEntity)?.let { player ->
+                            val customSpawnerItem = ItemStack(Items.SPAWNER).apply {
+                                count = 1
+                                nbt = createSpawnerNbt()
+                            }
+                            player.inventory.insertStack(customSpawnerItem)
+                            player.sendMessage(Text.literal("A custom spawner has been added to your inventory."), false)
+                            logDebug("Custom spawner given to player ${player.name.string}.")
+                        }
+                        1
+                    }
+            )
+            // Help command
+            .then(
+                literal("help")
+                    .executes { context ->
+                        val helpText = Text.literal("**BlanketCobbleSpawners Commands:**\n").styled { it.withColor(0xFFFFFF) } // White title
+                            .append(
+                                Text.literal("- ").styled { it.withColor(0xAAAAAA) } // Gray bullet
+                                    .append(Text.literal("/blanketcobblespawners reload").styled { it.withColor(0x55FF55) }) // Green command
+                                    .append(Text.literal(": Reloads the spawner configuration.\n").styled { it.withColor(0xAAAAAA) }) // Gray description
+                            )
+                            .append(
+                                Text.literal("- ").styled { it.withColor(0xAAAAAA) }
+                                    .append(Text.literal("/blanketcobblespawners givespawnerblock").styled { it.withColor(0x55FF55) })
+                                    .append(Text.literal(": Gives a custom spawner to the player.\n").styled { it.withColor(0xAAAAAA) })
+                            )
+                            .append(
+                                Text.literal("- ").styled { it.withColor(0xAAAAAA) }
+                                    .append(Text.literal("/blanketcobblespawners list").styled { it.withColor(0x55FF55) })
+                                    .append(Text.literal(": Lists all spawners with their coordinates.\n").styled { it.withColor(0xAAAAAA) })
+                            )
+                            .append(
+                                Text.literal("- ").styled { it.withColor(0xAAAAAA) }
+                                    .append(Text.literal("/blanketcobblespawners gui").styled { it.withColor(0x55FF55) })
+                                    .append(Text.literal(": Opens the GUI listing all spawners.\n").styled { it.withColor(0xAAAAAA) })
+                            )
+                            .append(
+                                Text.literal("- ").styled { it.withColor(0xAAAAAA) }
+                                    .append(Text.literal("/blanketcobblespawners edit <spawnerName>").styled { it.withColor(0x55FF55) })
+                                    .append(Text.literal(": Opens the GUI to edit the specified spawner.\n").styled { it.withColor(0xAAAAAA) })
+                            )
+                            .append(
+                                Text.literal("- ").styled { it.withColor(0xAAAAAA) }
+                                    .append(Text.literal("/blanketcobblespawners rename <currentName> <newName>").styled { it.withColor(0x55FF55) })
+                                    .append(Text.literal(": Renames the specified spawner.\n").styled { it.withColor(0xAAAAAA) })
+                            )
+                            .append(
+                                Text.literal("- ").styled { it.withColor(0xAAAAAA) }
+                                    .append(Text.literal("/blanketcobblespawners addmon <spawnerName> <pokemonName> [formName]").styled { it.withColor(0x55FF55) })
+                                    .append(Text.literal(": Adds a Pokémon to the specified spawner.\n").styled { it.withColor(0xAAAAAA) })
+                            )
+                            .append(
+                                Text.literal("- ").styled { it.withColor(0xAAAAAA) }
+                                    .append(Text.literal("/blanketcobblespawners removemon <spawnerName> <pokemonName> [formName]").styled { it.withColor(0x55FF55) })
+                                    .append(Text.literal(": Removes a Pokémon from the specified spawner.\n").styled { it.withColor(0xAAAAAA) })
+                            )
+                            .append(
+                                Text.literal("- ").styled { it.withColor(0xAAAAAA) }
+                                    .append(Text.literal("/blanketcobblespawners killspawned <spawnerName>").styled { it.withColor(0x55FF55) })
+                                    .append(Text.literal(": Removes all Pokémon spawned by the specified spawner.\n").styled { it.withColor(0xAAAAAA) })
+                            )
+                            .append(
+                                Text.literal("- ").styled { it.withColor(0xAAAAAA) }
+                                    .append(Text.literal("/blanketcobblespawners togglevisibility <spawnerName>").styled { it.withColor(0x55FF55) })
+                                    .append(Text.literal(": Toggles the visibility of the specified spawner.\n").styled { it.withColor(0xAAAAAA) })
+                            )
+                            .append(
+                                Text.literal("- ").styled { it.withColor(0xAAAAAA) }
+                                    .append(Text.literal("/blanketcobblespawners toggleradius <spawnerName>").styled { it.withColor(0x55FF55) })
+                                    .append(Text.literal(": Toggles spawn radius visualization for the specified spawner.\n").styled { it.withColor(0xAAAAAA) })
+                            )
+                            .append(
+                                Text.literal("- ").styled { it.withColor(0xAAAAAA) }
+                                    .append(Text.literal("/blanketcobblespawners teleport <spawnerName>").styled { it.withColor(0x55FF55) })
+                                    .append(Text.literal(": Teleports you to the specified spawner.\n").styled { it.withColor(0xAAAAAA) })
+                            )
+
+                        val player = context.source.player as? ServerPlayerEntity
+                        if (player != null) {
+                            player.sendMessage(helpText, false)
+                            return@executes 1
+                        } else {
+                            context.source.sendError(Text.literal("Only players can run this command."))
+                            return@executes 0
+                        }
+                    }
+            )
+
             // Debug commands group
             .then(
                 literal("debug")
@@ -580,96 +755,7 @@ object CommandRegistrar {
                                     }
                             )
                     )
-
             )
-            // Reload configuration
-            .then(
-                literal("reload")
-                    .executes { context ->
-                        ConfigManager.reloadSpawnerData() // Reload config
-                        context.source.sendFeedback(
-                            { Text.literal("Configuration for BlanketCobbleSpawners has been successfully reloaded.") },
-                            true
-                        )
-                        logDebug("Configuration reloaded for BlanketCobbleSpawners.")
-                        1
-                    }
-            )
-            // Give a custom spawner to the player
-            .then(
-                literal("give-spawner")
-                    .executes { context ->
-                        (context.source.player as? ServerPlayerEntity)?.let { player ->
-                            val customSpawnerItem = ItemStack(Items.SPAWNER).apply {
-                                count = 1
-                                nbt = createSpawnerNbt()
-                            }
-                            player.inventory.insertStack(customSpawnerItem)
-                            player.sendMessage(Text.literal("A custom spawner has been added to your inventory."), false)
-                            logDebug("Custom spawner given to player ${player.name.string}.")
-                        }
-                        1
-                    }
-            )
-            // List spawners
-            .then(
-                literal("list-spawners")
-                    .executes { context ->
-                        val player = context.source.player as? ServerPlayerEntity ?: return@executes 0
-                        val spawnerList = ConfigManager.spawners.map { (pos, data) ->
-                            "${data.spawnerName}: ${pos.x}, ${pos.y}, ${pos.z} (${data.dimension})"
-                        }
-
-                        if (spawnerList.isEmpty()) {
-                            player.sendMessage(Text.literal("No spawners found."), false)
-                        } else {
-                            player.sendMessage(Text.literal("Spawners:\n${spawnerList.joinToString("\n")}"), false)
-                        }
-                        1
-                    }
-            )
-            // Open the GUI that lists all spawners
-            .then(
-                literal("spawner-list-gui")
-                    .executes { context ->
-                        val player = context.source.player as? ServerPlayerEntity ?: return@executes 0
-                        SpawnerListGui.openSpawnerListGui(player)
-                        context.source.sendFeedback({ Text.literal("Spawner GUI has been opened.") }, true)
-                        1
-                    }
-            )
-            // Add Help Command
-            .then(
-                literal("help")
-                    .executes { context ->
-                        val helpText = """
-                            **BlanketCobbleSpawners Commands:**
-                            - `/blanketcobblespawners reload`: Reloads the spawner configuration.
-                            - `/blanketcobblespawners give-spawner`: Gives a custom spawner to the player.
-                            - `/blanketcobblespawners list-spawners`: Lists all spawners with their coordinates.
-                            - `/blanketcobblespawners spawner-list-gui`: Opens the GUI listing all spawners.
-                            - `/blanketcobblespawners spawner edit <spawnerName>`: Opens the GUI to edit the specified spawner.
-                            - `/blanketcobblespawners spawner addmon <spawnerName> <pokemonName> [formName]`: Adds a Pokémon to the specified spawner. If the Pokémon has forms, you can specify the form.
-                            - `/blanketcobblespawners spawner removemon <spawnerName> <pokemonName> [formName]`: Removes a Pokémon from the specified spawner. If multiple forms exist, specify the form.
-                            - `/blanketcobblespawners spawner kill-spawned-pokemon <spawnerName>`: Removes all Pokémon from the specified spawner.
-                            - `/blanketcobblespawners spawner toggle-spawner-visibility <spawnerName>`: Toggles the visibility of the specified spawner.
-                            - `/blanketcobblespawners spawner toggle-radius-visualization <spawnerName>`: Toggles spawn radius visualization for the specified spawner.
-                            - `/blanketcobblespawners spawner tptospawner <spawnerName>`: Teleports you to the specified spawner.
-                            - `/blanketcobblespawners debug spawn-custom-pokemon <pokemonName> [formName]`: Spawns a custom Pokémon.
-                            - `/blanketcobblespawners debug log-pokemon-species-and-dex`: Logs all Pokémon species and dex numbers to the console.
-                        """.trimIndent()
-
-                        val player = context.source.player as? ServerPlayerEntity
-                        if (player != null) {
-                            player.sendMessage(Text.literal(helpText), false)
-                            return@executes 1
-                        } else {
-                            context.source.sendError(Text.literal("Only players can run this command."))
-                            return@executes 0
-                        }
-                    }
-            )
-
         // Build the command into a CommandNode
         val builtMainCommand = dispatcher.register(mainCommand)
 
@@ -684,6 +770,7 @@ object CommandRegistrar {
         // Log the registration
         logDebug("Registering commands: /blanketcobblespawners, /cobblespawners, /bcs")
     }
+
 
 
     private fun calculateMapEntryCount(): String {
