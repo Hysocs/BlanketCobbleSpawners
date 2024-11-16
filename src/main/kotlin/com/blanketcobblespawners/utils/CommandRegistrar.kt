@@ -759,7 +759,7 @@ object CommandRegistrar {
         // Build the command into a CommandNode
         val builtMainCommand = dispatcher.register(mainCommand)
 
-        // Define aliases for `/cobblespawners` and `/bcs`, and redirect them to the built command
+        // Define aliases for `/cobblespawners` and `/bcs`, and redirect them to the built command. i may add more
         val aliasSpawnerCommand1 = literal("cobblespawners").redirect(builtMainCommand)
         val aliasSpawnerCommand2 = literal("bcs").redirect(builtMainCommand)
 
