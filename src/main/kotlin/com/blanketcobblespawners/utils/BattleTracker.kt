@@ -140,13 +140,12 @@ class BattleTracker {
                                 saveOriginalEVs(battleId, playerPokemon)
                             }
                         }
-                    }
+                    } ?: logDebug("Opponent's Pokémon is not from a spawner. Skipping EV tracking.")
                 }
-            } else {
-                logDebug("Already checked opponent's Pokémon. Skipping further checks.")
             }
         }
     }
+
 
     private fun handleBattleVictory(battleId: UUID) {
         if (!ongoingBattles.containsKey(battleId)) return
@@ -202,6 +201,11 @@ class BattleTracker {
         val battleInfo = ongoingBattles[battleId] ?: return
 
         synchronized(battleInfo) {
+            if (!battleInfo.isOpponentFromSpawner) {
+                logDebug("Battle ID: $battleId did not involve spawner Pokémon. Skipping EV modifications.")
+                return
+            }
+
             if (battleInfo.valuesApplied) {
                 logDebug("Values already applied for Battle ID: $battleId")
                 return
@@ -227,10 +231,15 @@ class BattleTracker {
 
     private fun saveOriginalEVs(battleId: UUID, pokemon: Pokemon) {
         val battleInfo = ongoingBattles[battleId] ?: return
+        if (!battleInfo.isOpponentFromSpawner) {
+            logDebug("Skipping EV save for non-spawner battle Pokémon: ${pokemon.species.name}")
+            return
+        }
         val currentEVs = Stats.PERMANENT.associateWith { pokemon.evs.get(it) ?: 0 }
         battleInfo.originalEVMap[pokemon.uuid] = ConcurrentHashMap(currentEVs)
         logDebug("Saved EVs for ${pokemon.species.name}: ${currentEVs.entries.joinToString { "${it.key}: ${it.value}" }}")
     }
+
 
     private fun revertEVsAfterChange(battleId: UUID, pokemon: Pokemon) {
         ongoingBattles[battleId]?.originalEVMap?.get(pokemon.uuid)?.forEach { (stat, ev) ->
