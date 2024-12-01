@@ -6,7 +6,7 @@ import com.blanketcobblespawners.utils.ConfigManager.logDebug
 import com.blanketcobblespawners.utils.ParticleUtils.activeVisualizations
 import com.blanketcobblespawners.utils.ParticleUtils.visualizationInterval
 import com.blanketcobblespawners.utils.ParticleUtils.visualizeSpawnerPositions
-import com.blanketcobblespawners.utils.gui.GuiManager
+import com.blanketcobblespawners.utils.gui.SpawnerPokemonSelectionGui
 import com.cobblemon.mod.common.api.pokemon.PokemonProperties
 import com.cobblemon.mod.common.api.pokemon.PokemonSpecies
 import com.cobblemon.mod.common.api.pokemon.stats.Stat
@@ -155,7 +155,7 @@ object BlanketCobbleSpawners : ModInitializer {
 				val blockState = world.getBlockState(blockPos)
 				if (blockState.block == Blocks.SPAWNER && ConfigManager.spawners.containsKey(blockPos)) {
 					if (player.hasPermissionLevel(4)) {
-						GuiManager.openSpawnerGui(player, blockPos)
+						SpawnerPokemonSelectionGui.openSpawnerGui(player, blockPos)
 						return@register ActionResult.SUCCESS
 					} else {
 						player.sendMessage(Text.literal("You don't have permission to manage this spawner."), false)
@@ -235,7 +235,7 @@ object BlanketCobbleSpawners : ModInitializer {
 	}
 
 	private fun spawnPokemon(serverWorld: ServerWorld, spawnerData: SpawnerData) {
-		if (GuiManager.isSpawnerGuiOpen(spawnerData.spawnerPos)) {
+		if (SpawnerPokemonSelectionGui.isSpawnerGuiOpen(spawnerData.spawnerPos)) {
 			logDebug("GUI is open for spawner at ${spawnerData.spawnerPos}. Skipping spawn.")
 			return
 		}

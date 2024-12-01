@@ -53,8 +53,8 @@ enum class SortMethod {
 }
 
 
-object GuiManager {
-    private val logger = LoggerFactory.getLogger(GuiManager::class.java)
+object SpawnerPokemonSelectionGui {
+    private val logger = LoggerFactory.getLogger(SpawnerPokemonSelectionGui::class.java)
     var sortMethod = SortMethod.ALPHABETICAL
 
     // Tracks the current page per player

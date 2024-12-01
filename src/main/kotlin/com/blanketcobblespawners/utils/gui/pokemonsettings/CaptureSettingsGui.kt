@@ -4,8 +4,8 @@ import com.blanketcobblespawners.utils.ConfigManager
 import com.blanketcobblespawners.utils.CustomGui
 import com.blanketcobblespawners.utils.InteractionContext
 import com.blanketcobblespawners.utils.PokemonSpawnEntry
-import com.blanketcobblespawners.utils.gui.GuiManager
-import com.blanketcobblespawners.utils.gui.GuiManager.spawnerGuisOpen
+import com.blanketcobblespawners.utils.gui.SpawnerPokemonSelectionGui
+import com.blanketcobblespawners.utils.gui.SpawnerPokemonSelectionGui.spawnerGuisOpen
 import net.minecraft.inventory.Inventory
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
@@ -62,7 +62,7 @@ object CaptureSettingsGui {
                 }
                 49 -> { // Back button
                     CustomGui.closeGui(player)
-                    GuiManager.openPokemonEditSubGui(player, spawnerPos, pokemonName, formName)
+                    SpawnerPokemonSelectionGui.openPokemonEditSubGui(player, spawnerPos, pokemonName, formName)
                 }
             }
         }

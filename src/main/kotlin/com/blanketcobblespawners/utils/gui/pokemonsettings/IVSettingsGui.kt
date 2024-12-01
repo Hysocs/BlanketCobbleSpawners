@@ -5,7 +5,7 @@ import com.blanketcobblespawners.utils.ConfigManager.logDebug
 import com.blanketcobblespawners.utils.CustomGui
 import com.blanketcobblespawners.utils.InteractionContext
 import com.blanketcobblespawners.utils.PokemonSpawnEntry
-import com.blanketcobblespawners.utils.gui.GuiManager
+import com.blanketcobblespawners.utils.gui.SpawnerPokemonSelectionGui
 import net.minecraft.inventory.Inventory
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
@@ -33,7 +33,7 @@ object IVSettingsGui {
 
         val layout = generateIVEditorLayout(selectedEntry)
 
-        GuiManager.spawnerGuisOpen[spawnerPos] = player
+        SpawnerPokemonSelectionGui.spawnerGuisOpen[spawnerPos] = player
 
         val onInteract: (InteractionContext) -> Unit = { context ->
             val clickedItem = context.clickedStack
@@ -76,7 +76,7 @@ object IVSettingsGui {
                 Items.ARROW -> {
                     CustomGui.closeGui(player)
                     player.sendMessage(Text.literal("Returning to Edit Pokémon menu"), false)
-                    GuiManager.openPokemonEditSubGui(
+                    SpawnerPokemonSelectionGui.openPokemonEditSubGui(
                         player,
                         spawnerPos,
                         selectedEntry.pokemonName,
@@ -87,7 +87,7 @@ object IVSettingsGui {
         }
 
         val onClose: (Inventory) -> Unit = {
-            GuiManager.spawnerGuisOpen.remove(spawnerPos)
+            SpawnerPokemonSelectionGui.spawnerGuisOpen.remove(spawnerPos)
             player.sendMessage(
                 Text.literal("IV Editor closed for ${selectedEntry.pokemonName} (${selectedEntry.formName ?: "Standard"})"),
                 false

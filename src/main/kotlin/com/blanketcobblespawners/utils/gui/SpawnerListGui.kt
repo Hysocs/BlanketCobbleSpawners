@@ -134,7 +134,7 @@ object SpawnerListGui {
                 val spawnerData = spawnerList.find { it.second.spawnerName == clickedName }?.second
 
                 if (spawnerData != null) {
-                    GuiManager.openSpawnerGui(player, spawnerData.spawnerPos)
+                    SpawnerPokemonSelectionGui.openSpawnerGui(player, spawnerData.spawnerPos)
                 } else {
                     player.sendMessage(Text.literal("Spawner '$clickedName' not found."), false)
                 }

@@ -4,7 +4,7 @@ package com.blanketcobblespawners.utils.gui.pokemonsettings
 import com.blanketcobblespawners.utils.ConfigManager
 import com.blanketcobblespawners.utils.CustomGui
 import com.blanketcobblespawners.utils.InteractionContext
-import com.blanketcobblespawners.utils.gui.GuiManager
+import com.blanketcobblespawners.utils.gui.SpawnerPokemonSelectionGui
 import com.cobblemon.mod.common.item.PokeBallItem
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
@@ -38,7 +38,7 @@ object CaptureBallSettingsGui {
         val title = "Select Required Poké Balls for $pokemonName" + if (formName != null) " ($formName)" else ""
 
         // **Begin Change: Set the spawner GUI as open**
-        GuiManager.spawnerGuisOpen[spawnerPos] = player
+        SpawnerPokemonSelectionGui.spawnerGuisOpen[spawnerPos] = player
         // **End Change**
 
         CustomGui.openGui(
@@ -49,7 +49,7 @@ object CaptureBallSettingsGui {
             {
                 playerPages.remove(player)
                 // **Begin Change: Remove the spawner GUI from the open map when GUI is closed**
-                GuiManager.spawnerGuisOpen.remove(spawnerPos)
+                SpawnerPokemonSelectionGui.spawnerGuisOpen.remove(spawnerPos)
                 // **End Change**
             }
         )

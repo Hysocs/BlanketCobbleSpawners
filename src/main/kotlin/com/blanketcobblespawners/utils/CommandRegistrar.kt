@@ -5,7 +5,7 @@ import com.blanketcobblespawners.BlanketCobbleSpawners
 import com.blanketcobblespawners.utils.ConfigManager.logDebug
 import com.blanketcobblespawners.utils.gui.SpawnerListGui
 import com.blanketcobblespawners.utils.ParticleUtils.toggleVisualization
-import com.blanketcobblespawners.utils.gui.GuiManager
+import com.blanketcobblespawners.utils.gui.SpawnerPokemonSelectionGui
 import com.cobblemon.mod.common.api.drop.DropTable
 import com.cobblemon.mod.common.api.pokemon.PokemonProperties
 import com.cobblemon.mod.common.entity.pokemon.PokemonEntity
@@ -87,7 +87,7 @@ object CommandRegistrar {
 
                                 if (player != null) {
                                     // Open the GUI for the spawner
-                                    GuiManager.openSpawnerGui(player, spawnerEntry.spawnerPos)
+                                    SpawnerPokemonSelectionGui.openSpawnerGui(player, spawnerEntry.spawnerPos)
                                     context.source.sendFeedback({ Text.literal("GUI for spawner '$spawnerName' has been opened.") }, true)
                                     return@executes 1
                                 } else {
@@ -779,10 +779,10 @@ object CommandRegistrar {
         val spawnerConfigCount = ConfigManager.spawners.size
         val cachedValidPositionsCount = BlanketCobbleSpawners.spawnerValidPositions.size
         val ongoingBattlesCount = BattleTracker().ongoingBattles.size
-        val playerPagesCount = GuiManager.playerPages.size
-        val spawnerGuisOpenCount = GuiManager.spawnerGuisOpen.size
+        val playerPagesCount = SpawnerPokemonSelectionGui.playerPages.size
+        val spawnerGuisOpenCount = SpawnerPokemonSelectionGui.spawnerGuisOpen.size
         val selectedPokemonListCount = ConfigManager.spawners.values.sumOf { it.selectedPokemon.size }
-        val speciesFormsListCount = GuiManager.getSortedSpeciesList(emptyList()).size
+        val speciesFormsListCount = SpawnerPokemonSelectionGui.getSortedSpeciesList(emptyList()).size
         val lastSpawnTicksCount = ConfigManager.lastSpawnTicks.size
         val spawnerValidPositionsCount = BlanketCobbleSpawners.spawnerValidPositions.size
 

@@ -46,7 +46,7 @@ object SortGui {
     fun openSortGui(player: ServerPlayerEntity, spawnerPos: BlockPos) {
         val layout = generateAlphabetGuiLayout()
 
-        GuiManager.spawnerGuisOpen[spawnerPos] = player
+        SpawnerPokemonSelectionGui.spawnerGuisOpen[spawnerPos] = player
 
         val onInteract: (InteractionContext) -> Unit = { context ->
             if (context.slotIndex == 53) {
@@ -57,7 +57,7 @@ object SortGui {
         }
 
         val onClose: (Inventory) -> Unit = {
-            GuiManager.spawnerGuisOpen.remove(spawnerPos)
+            SpawnerPokemonSelectionGui.spawnerGuisOpen.remove(spawnerPos)
             player.sendMessage(Text.literal("Sorting letter selection closed."), false)
         }
 
@@ -121,7 +121,7 @@ object SortGui {
 
         try {
             val selectedSortMethod = SortMethod.valueOf("LETTER_${letter.uppercase()}")
-            GuiManager.sortMethod = selectedSortMethod
+            SpawnerPokemonSelectionGui.sortMethod = selectedSortMethod
 
             player.sendMessage(Text.literal("Sort method set to start with '$letter'"), false)
         } catch (e: IllegalArgumentException) {
@@ -132,6 +132,6 @@ object SortGui {
     }
 
     private fun goBackToPreviousGui(player: ServerPlayerEntity, spawnerPos: BlockPos) {
-        GuiManager.openSpawnerGui(player, spawnerPos)
+        SpawnerPokemonSelectionGui.openSpawnerGui(player, spawnerPos)
     }
 }

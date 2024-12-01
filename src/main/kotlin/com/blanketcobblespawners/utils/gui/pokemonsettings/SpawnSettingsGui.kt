@@ -6,8 +6,8 @@ import com.blanketcobblespawners.utils.ConfigManager.logDebug
 import com.blanketcobblespawners.utils.CustomGui
 import com.blanketcobblespawners.utils.InteractionContext
 import com.blanketcobblespawners.utils.PokemonSpawnEntry
-import com.blanketcobblespawners.utils.gui.GuiManager
-import com.blanketcobblespawners.utils.gui.GuiManager.spawnerGuisOpen
+import com.blanketcobblespawners.utils.gui.SpawnerPokemonSelectionGui
+import com.blanketcobblespawners.utils.gui.SpawnerPokemonSelectionGui.spawnerGuisOpen
 import net.minecraft.inventory.Inventory
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
@@ -89,7 +89,7 @@ object SpawnSettingsGui {
 
         val layout = generateSpawnShinyEditorLayout(selectedEntry)
 
-        GuiManager.spawnerGuisOpen[spawnerPos] = player
+        SpawnerPokemonSelectionGui.spawnerGuisOpen[spawnerPos] = player
 
         val onInteract: (InteractionContext) -> Unit = onInteract@{ context ->
             val slotIndex = context.slotIndex
@@ -139,7 +139,7 @@ object SpawnSettingsGui {
             if (clickedItem.item == Items.ARROW) {
                 CustomGui.closeGui(player)
                 player.sendMessage(Text.literal("Returning to Edit Pokémon menu"), false)
-                GuiManager.openPokemonEditSubGui(player, spawnerPos, pokemonName, formName)
+                SpawnerPokemonSelectionGui.openPokemonEditSubGui(player, spawnerPos, pokemonName, formName)
             }
         }
 

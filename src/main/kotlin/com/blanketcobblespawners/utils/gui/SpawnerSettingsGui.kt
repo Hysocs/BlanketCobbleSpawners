@@ -19,7 +19,7 @@ object SpawnerSettingsGui {
     fun openSpawnerSettingsGui(player: ServerPlayerEntity, spawnerPos: BlockPos) {
         val spawnerData = ConfigManager.getSpawner(spawnerPos)
 
-        GuiManager.spawnerGuisOpen[spawnerPos] = player
+        SpawnerPokemonSelectionGui.spawnerGuisOpen[spawnerPos] = player
 
         if (spawnerData == null) {
             player.sendMessage(Text.literal("Spawner not found at position $spawnerPos."), false)
@@ -40,14 +40,14 @@ object SpawnerSettingsGui {
                 49 -> {
                     // Close the current GUI and reopen the Spawner list GUI
                     CustomGui.closeGui(player)
-                    GuiManager.openSpawnerGui(player, spawnerPos, GuiManager.playerPages[player] ?: 0) // Reopen the Spawner list GUI
+                    SpawnerPokemonSelectionGui.openSpawnerGui(player, spawnerPos, SpawnerPokemonSelectionGui.playerPages[player] ?: 0) // Reopen the Spawner list GUI
                 }
                 else -> player.sendMessage(Text.literal("Unknown setting clicked at slot ${context.slotIndex}"), false)
             }
         }
 
         val onClose: (Inventory) -> Unit = {
-            GuiManager.spawnerGuisOpen.remove(spawnerPos)
+            SpawnerPokemonSelectionGui.spawnerGuisOpen.remove(spawnerPos)
             player.sendMessage(Text.literal("Spawner settings GUI closed"), false)
         }
 

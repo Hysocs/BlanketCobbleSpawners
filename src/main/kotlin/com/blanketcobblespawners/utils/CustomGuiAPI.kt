@@ -187,20 +187,39 @@ object CustomGui {
      * Sets the lore on an ItemStack.
      *
      * @param itemStack The ItemStack to set the lore on.
-     * @param loreLines The list of lore lines.
+     * @param loreLines The list of lore lines, which can be either Strings or Text components.
      */
-    fun setItemLore(itemStack: ItemStack, loreLines: List<String>) {
-
+    fun setItemLore(itemStack: ItemStack, loreLines: List<Any?>) {
         val displayNbt = itemStack.orCreateNbt.getCompound("display") ?: NbtCompound()
         val loreList = NbtList()
 
-        loreLines.forEach { line ->
-            loreList.add(NbtString.of(Text.Serializer.toJson(Text.literal(line))))
+        try {
+            loreLines.forEach { line ->
+                if (line == null) {
+                    throw IllegalArgumentException("Lore line cannot be null")
+                }
+
+                val textLine = when (line) {
+                    is Text -> line
+                    is String -> Text.literal(line)
+                    else -> Text.literal(line.toString())
+                }
+
+                loreList.add(NbtString.of(Text.Serializer.toJson(textLine)))
+            }
+        } catch (e: Exception) {
+            // Clear any partially added lore lines
+            loreList.clear()
+            // Set error lore messages
+            loreList.add(NbtString.of(Text.Serializer.toJson(Text.literal("§cError setting lore"))))
+            loreList.add(NbtString.of(Text.Serializer.toJson(Text.literal("§7${e.message}"))))
         }
 
         displayNbt.put("Lore", loreList)
         itemStack.orCreateNbt.put("display", displayNbt)
     }
+
+
 
     /**
      * Strips formatting codes from the provided text.
