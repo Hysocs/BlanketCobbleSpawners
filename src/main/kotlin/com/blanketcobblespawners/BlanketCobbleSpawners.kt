@@ -154,7 +154,9 @@ object BlanketCobbleSpawners : ModInitializer {
 				val blockPos = hitResult.blockPos
 				val blockState = world.getBlockState(blockPos)
 				if (blockState.block == Blocks.SPAWNER && ConfigManager.spawners.containsKey(blockPos)) {
-					if (player.hasPermissionLevel(4)) {
+					// Check if player has the "BlanketCobbleSpawners.Edit" permission instead of just permission level
+					if (CommandRegistrar.hasPermission(player, "BlanketCobbleSpawners.Edit", 2)) {
+						// Open the spawner GUI just like the /edit command
 						SpawnerPokemonSelectionGui.openSpawnerGui(player, blockPos)
 						return@register ActionResult.SUCCESS
 					} else {
@@ -178,11 +180,21 @@ object BlanketCobbleSpawners : ModInitializer {
 
 	private fun registerBlockBreakCallback() {
 		PlayerBlockBreakEvents.BEFORE.register { world, player, blockPos, blockState, _ ->
-			if (world is ServerWorld && blockState.block == Blocks.SPAWNER) {
+			// Attempt to cast the PlayerEntity to ServerPlayerEntity
+			val serverPlayer = player as? ServerPlayerEntity ?: return@register true
+
+			if (world is ServerWorld && blockState.block == Blocks.SPAWNER && ConfigManager.spawners.containsKey(blockPos)) {
+				if (!CommandRegistrar.hasPermission(serverPlayer, "BlanketCobbleSpawners.break", 2)) {
+					serverPlayer.sendMessage(Text.literal("You don't have permission to remove this spawner."), false)
+					// Prevent the block from being broken
+					return@register false
+				}
+
+				// Player has remove permission
 				if (ConfigManager.removeSpawner(blockPos)) {
 					SpawnerUUIDManager.clearPokemonForSpawner(blockPos)
 					spawnerValidPositions.remove(blockPos)
-					player.sendMessage(Text.literal("Custom spawner removed at $blockPos."), false)
+					serverPlayer.sendMessage(Text.literal("Custom spawner removed at $blockPos."), false)
 					logDebug("Custom spawner removed at $blockPos.")
 				}
 			} else if (world is ServerWorld) {
@@ -191,6 +203,8 @@ object BlanketCobbleSpawners : ModInitializer {
 			true
 		}
 	}
+
+
 
 	private fun invalidatePositionsIfWithinRadius(world: World, changedBlockPos: BlockPos) {
 		for (spawnerPos in ConfigManager.spawners.keys) {
@@ -210,6 +224,12 @@ object BlanketCobbleSpawners : ModInitializer {
 		pos: BlockPos,
 		itemInHand: ItemStack
 	) {
+		// Check place permission
+		if (!CommandRegistrar.hasPermission(player, "BlanketCobbleSpawners.Place", 2)) {
+			player.sendMessage(Text.literal("You don't have permission to place a custom spawner."), false)
+			return
+		}
+
 		if (ConfigManager.spawners.containsKey(pos)) {
 			player.sendMessage(Text.literal("A spawner already exists at this location!"), false)
 			return
@@ -233,6 +253,7 @@ object BlanketCobbleSpawners : ModInitializer {
 			itemInHand.decrement(1)
 		}
 	}
+
 
 	private fun spawnPokemon(serverWorld: ServerWorld, spawnerData: SpawnerData) {
 		if (SpawnerPokemonSelectionGui.isSpawnerGuiOpen(spawnerData.spawnerPos)) {

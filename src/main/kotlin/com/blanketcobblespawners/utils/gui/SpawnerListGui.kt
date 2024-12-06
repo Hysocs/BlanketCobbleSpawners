@@ -1,6 +1,7 @@
 package com.blanketcobblespawners.utils.gui
 
 import com.blanketcobblespawners.utils.ConfigManager
+import com.blanketcobblespawners.utils.CommandRegistrar
 import com.blanketcobblespawners.utils.CustomGui
 import com.blanketcobblespawners.utils.InteractionContext
 import com.blanketcobblespawners.utils.SpawnerData
@@ -21,6 +22,12 @@ object SpawnerListGui {
      * Opens the spawner list GUI.
      */
     fun openSpawnerListGui(player: ServerPlayerEntity) {
+        // Check GUI permission
+        if (!CommandRegistrar.hasPermission(player, "BlanketCobbleSpawners.gui", 2)) {
+            player.sendMessage(Text.literal("You don't have permission to use this GUI."), false)
+            return
+        }
+
         val currentPage = playerPages[player] ?: 0
 
         val spawnerList = ConfigManager.spawners.map { (pos, data) ->
@@ -42,6 +49,7 @@ object SpawnerListGui {
             { playerPages.remove(player) }
         )
     }
+
 
     /**
      * Generates the full layout for the GUI, including buttons and spawners.

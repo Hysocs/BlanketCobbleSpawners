@@ -68,6 +68,12 @@ object SpawnerPokemonSelectionGui {
     }
 
     fun openSpawnerGui(player: ServerPlayerEntity, spawnerPos: BlockPos, page: Int = 0) {
+
+        if (!CommandRegistrar.hasPermission(player, "BlanketCobbleSpawners.edit", 2)) {
+            player.sendMessage(Text.literal("You don't have permission to use this GUI."), false)
+            return
+        }
+
         val currentSpawnerData = ConfigManager.spawners[spawnerPos] ?: run {
             player.sendMessage(Text.literal("Spawner data not found"), false)
             return
